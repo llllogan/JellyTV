@@ -14,7 +14,7 @@ struct jellytvApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(player)
-                .sheet(isPresented: $player.isPresenting) { PlayerSheet(coordinator: player) }
+                .fullScreenCover(isPresented: $player.isPresenting) { NativePlayerView(coordinator: player) }
         }
     }
 }

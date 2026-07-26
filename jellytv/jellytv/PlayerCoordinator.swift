@@ -24,8 +24,12 @@ import Combine
     func stop() { if let item, let api { Task { await api.report("Sessions/Playing/Stopped", itemID: item.id, positionTicks: Int64((player?.currentTime().seconds ?? 0) * 10_000_000), playSessionID: sessionID) } }; if let timer { player?.removeTimeObserver(timer) }; timer = nil; player?.pause(); player = nil; controller = nil; isPresenting = false }
 }
 
-struct PlayerSheet: View {
+struct NativePlayerView: View {
     @ObservedObject var coordinator: PlayerCoordinator
-    var body: some View { PlayerControllerRepresentable(controller: coordinator.controller).ignoresSafeArea().onDisappear { coordinator.stop() } }
+    var body: some View {
+        PlayerControllerRepresentable(controller: coordinator.controller)
+            .ignoresSafeArea()
+            .onDisappear { coordinator.stop() }
+    }
 }
 private struct PlayerControllerRepresentable: UIViewControllerRepresentable { let controller: AVPlayerViewController?; func makeUIViewController(context: Context) -> AVPlayerViewController { controller ?? AVPlayerViewController() }; func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {} }
