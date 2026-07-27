@@ -14,12 +14,8 @@ struct ItemDetailView: View {
                 ArtworkView(item: item, width: 180, height: 270)
                     .frame(maxWidth: .infinity)
                 Text((details ?? item).name).font(.title.bold())
-                if let overview = (details ?? item).overview {
-                    Text(overview).foregroundStyle(.secondary)
-                }
-                if item.type == "Movie" || item.type == "Episode" {
-                    playButton
-                }
+                actionRow
+                if let overview = (details ?? item).overview { Text(overview).foregroundStyle(.secondary) }
                 ForEach(children) { child in ItemRow(item: child) }
                 if let error {
                     Text(error).foregroundStyle(.red)
@@ -32,13 +28,44 @@ struct ItemDetailView: View {
         .task(id: item.id) { await load() }
     }
 
-    private var playButton: some View {
-        Button {
-            Task { await play(details ?? item) }
-        } label: {
-            Label("Play", systemImage: "play.fill").frame(maxWidth: .infinity)
+    @ViewBuilder private var actionRow: some View {
+        let target = details ?? item
+        if target.type == "Movie" || target.type == "Episode" {
+            HStack(spacing: 10) {
+                Button { Task { await play(target) } } label: {
+                    HStack(spacing: 8) {
+                        if target.canResume, let progress = target.progressPercent {
+                            WatchProgressIndicator(progress: progress, size: 22, tint: .white)
+                        } else {
+                            Image(systemName: "play.fill")
+                        }
+                        Text(target.canResume ? "Resume" : "Play")
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 32)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
+
+                Button { } label: {
+                    Image(systemName: "arrow.down")
+                        .frame(width: 44, height: 44)
+                        .background(.thinMaterial, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Download")
+
+                if target.canDelete == true {
+                    Button { } label: {
+                        Image(systemName: "trash")
+                            .frame(width: 44, height: 44)
+                            .background(.thinMaterial, in: Circle())
+                    }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Delete")
+                }
+            }
         }
-        .buttonStyle(.borderedProminent)
     }
 
     private func load() async {

@@ -47,8 +47,10 @@ struct MediaCard: View {
     }
 }
 
-private struct WatchProgressIndicator: View {
+struct WatchProgressIndicator: View {
     let progress: Double
+    var size: CGFloat = 14
+    var tint: Color = .purple
 
     private var clampedProgress: Double {
         min(max(progress, 0), 1)
@@ -57,13 +59,13 @@ private struct WatchProgressIndicator: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(.purple.opacity(0.2), lineWidth: 2)
+                .stroke(tint.opacity(0.2), lineWidth: 2)
             Circle()
                 .trim(from: 0, to: clampedProgress)
-                .stroke(.purple, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .stroke(tint, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                 .rotationEffect(.degrees(-90))
         }
-        .frame(width: 14, height: 14)
+        .frame(width: size, height: size)
         .accessibilityLabel("\(Int(clampedProgress * 100)) percent watched")
     }
 }

@@ -6,6 +6,7 @@ import Security
 final class SeerrSession: ObservableObject {
     @Published private(set) var account: SeerrAccount?
     @Published private(set) var user: SeerrUser?
+    @Published private(set) var pendingApprovalCount = 0
     @Published var isWorking = false
     @Published var error: String?
 
@@ -40,7 +41,7 @@ final class SeerrSession: ObservableObject {
 
     func disconnect() {
         SeerrKeychainStore.clear()
-        account = nil; user = nil; error = nil
+        account = nil; user = nil; pendingApprovalCount = 0; error = nil
     }
 
     func handle(_ failure: Error) {
@@ -50,9 +51,25 @@ final class SeerrSession: ObservableObject {
         }
     }
 
+    func refreshPendingApprovalCount() async {
+        guard user?.canApproveRequests == true, let api else {
+            pendingApprovalCount = 0
+            return
+        }
+        do {
+            pendingApprovalCount = try await api.approvalRequests().count
+        } catch {
+            pendingApprovalCount = 0
+            handle(error)
+        }
+    }
+
     private func validate() async {
         guard let api else { return }
-        do { user = try await api.currentUser() }
+        do {
+            user = try await api.currentUser()
+            await refreshPendingApprovalCount()
+        }
         catch { handle(error) }
     }
 
@@ -61,6 +78,7 @@ final class SeerrSession: ObservableObject {
         SeerrKeychainStore.save(account)
         self.account = account
         self.user = user
+        await refreshPendingApprovalCount()
     }
 }
 

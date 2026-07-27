@@ -10,10 +10,10 @@ struct MainTabView: View {
                 BrowseView(session: session, seerrSession: seerrSession)
             }
             Tab("Movies", systemImage: "film") {
-                CatalogView(session: session, type: "Movie", title: "Movies")
+                CatalogView(session: session, seerrSession: seerrSession, type: "Movie", title: "Movies")
             }
             Tab("TV", systemImage: "tv") {
-                CatalogView(session: session, type: "Series", title: "TV Shows")
+                CatalogView(session: session, seerrSession: seerrSession, type: "Series", title: "TV Shows")
             }
             Tab("Search", systemImage: "magnifyingglass", role: .search) {
                 SearchLibraryView(session: session, seerrSession: seerrSession)

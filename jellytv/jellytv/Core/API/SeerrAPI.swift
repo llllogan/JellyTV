@@ -57,6 +57,24 @@ struct SeerrAPI: Sendable {
         )
         return page.results
     }
+    func approvalRequests() async throws -> [SeerrRequest] {
+        let page: SeerrPage<SeerrRequest> = try await get(
+            "api/v1/request",
+            query: [
+                URLQueryItem(name: "take", value: "100"),
+                URLQueryItem(name: "filter", value: "pending"),
+                URLQueryItem(name: "sort", value: "modified"),
+                URLQueryItem(name: "sortDirection", value: "desc"),
+            ]
+        )
+        return page.results
+    }
+    func approveRequest(id: Int) async throws -> SeerrRequest {
+        try await updateRequest(id: id, status: "approve")
+    }
+    func declineRequest(id: Int) async throws -> SeerrRequest {
+        try await updateRequest(id: id, status: "decline")
+    }
     func trendingMovies() async throws -> [SeerrMedia] {
         try await discovery("api/v1/discover/trending", kind: "movie", query: [URLQueryItem(name: "mediaType", value: "movie")])
     }
@@ -111,6 +129,12 @@ struct SeerrAPI: Sendable {
     private func createRequest(_ body: [String: Any]) async throws -> SeerrRequest {
         var request = request(path: "api/v1/request", method: "POST")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try await decode(request)
+    }
+
+    private func updateRequest(id: Int, status: String) async throws -> SeerrRequest {
+        var request = request(path: "api/v1/request/\(id)/\(status)", method: "POST")
+        request.httpBody = Data("{}".utf8)
         return try await decode(request)
     }
 

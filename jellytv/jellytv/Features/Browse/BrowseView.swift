@@ -1,19 +1,35 @@
 import SwiftUI
 
 struct BrowseView: View {
+    private enum MediaFilter: String, CaseIterable, Identifiable {
+        case movies
+        case tv
+        case all
+
+        var id: Self { self }
+        var title: String {
+            switch self {
+            case .movies: "Movies"
+            case .tv: "TV"
+            case .all: "All"
+            }
+        }
+    }
+
     @ObservedObject var session: JellyfinSession
     @ObservedObject var seerrSession: SeerrSession
     @State private var resume: [JellyfinItem] = []
     @State private var nextUp: [JellyfinItem] = []
-    @State private var pending: [SeerrRequest] = []
     @State private var discovery: [String: [SeerrMedia]] = [:]
     @State private var movieGenres: [SeerrGenre] = []
     @State private var tvGenres: [SeerrGenre] = []
     @State private var movieGenreItems: [Int: [SeerrMedia]] = [:]
     @State private var tvGenreItems: [Int: [SeerrMedia]] = [:]
     @State private var error: String?
-    @State private var showSeerrConnection = false
+    @State private var showProfile = false
+    @State private var showPendingRequests = false
     @State private var hasLoaded = false
+    @State private var mediaFilter: MediaFilter = .all
 
     private let discoverySections = [
         ("Trending Movies", "trendingMovies"),
@@ -27,43 +43,28 @@ struct BrowseView: View {
     var body: some View {
         NavigationStack {
             List {
-                if !resume.isEmpty {
+                if !filtered(resume).isEmpty {
                     Section("Continue Watching") {
-                        MediaCarousel(items: resume, detailStyle: .remainingTime)
+                        MediaCarousel(items: filtered(resume), detailStyle: .remainingTime)
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                     }
                 }
 
-                if !nextUp.isEmpty {
+                if !filtered(nextUp).isEmpty {
                     Section("Next Up") {
-                        MediaCarousel(items: nextUp, detailStyle: .nextUp)
+                        MediaCarousel(items: filtered(nextUp), detailStyle: .nextUp)
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
-                    }
-                }
-
-                if !pending.isEmpty {
-                    Section("Pending Requests") {
-                        SeerrMediaCarousel(
-                            items: pending.compactMap(\.media),
-                            session: seerrSession,
-                            requestStatuses: Dictionary(uniqueKeysWithValues: pending.compactMap { request in
-                                request.media.map { ($0.requestableID, request.statusText) }
-                            })
-                        )
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
                     }
                 }
 
                 ForEach(discoverySections, id: \.1) { section in
-                    if let items = discovery[section.1], !items.isEmpty {
+                    if let items = discovery[section.1], !filtered(items).isEmpty {
                         Section(section.0) {
-                            SeerrMediaCarousel(items: items, session: seerrSession)
+                            SeerrMediaCarousel(items: filtered(items), session: seerrSession)
                                 .listRowInsets(EdgeInsets())
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
@@ -76,7 +77,7 @@ struct BrowseView: View {
                         genre: genre,
                         mediaType: .movie,
                         session: seerrSession,
-                        items: movieGenreItems[genre.id] ?? []
+                        items: filtered(movieGenreItems[genre.id] ?? [])
                     )
                 }
 
@@ -85,7 +86,7 @@ struct BrowseView: View {
                         genre: genre,
                         mediaType: .tv,
                         session: seerrSession,
-                        items: tvGenreItems[genre.id] ?? []
+                        items: filtered(tvGenreItems[genre.id] ?? [])
                     )
                 }
 
@@ -102,20 +103,45 @@ struct BrowseView: View {
             }
             .listStyle(.plain)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Sign Out") {
-                        seerrSession.disconnect()
-                        session.logout()
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("Content", selection: $mediaFilter) {
+                            ForEach(MediaFilter.allCases) { filter in
+                                Text(filter.title).tag(filter)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "line.3.horizontal.decrease")
                     }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(seerrSession.isConnected ? "Seerr" : "Connect Seerr") { showSeerrConnection = true }
+                    if seerrSession.user?.canApproveRequests == true {
+                        PendingRequestsView.ApprovalEnvelopeButton(session: seerrSession) {
+                            showPendingRequests = true
+                        }
+                    }
+                    Button { showProfile = true } label: {
+                        Image(systemName: "externaldrive.connected.to.line.below")
+                    }
                 }
             }
             .navigationTitle("Browse")
+            .toolbarTitleDisplayMode(.inlineLarge)
             .task { await load() }
             .refreshable { await load(force: true) }
-            .sheet(isPresented: $showSeerrConnection) { SeerrConnectionView(session: seerrSession) }
+            .sheet(isPresented: $showProfile) {
+                ProfileView(jellyfinSession: session, seerrSession: seerrSession)
+            }
+            .sheet(isPresented: $showPendingRequests) { PendingRequestsView(session: seerrSession) }
+            .onChange(of: seerrSession.account) { _, _ in
+                if seerrSession.api == nil {
+                    discovery = [:]
+                    movieGenres = []
+                    tvGenres = []
+                    movieGenreItems = [:]
+                    tvGenreItems = [:]
+                } else {
+                    Task { await loadSeerr() }
+                }
+            }
         }
     }
 
@@ -147,7 +173,6 @@ struct BrowseView: View {
 
     private func loadSeerr() async {
         guard let api = seerrSession.api else { return }
-        async let pendingRequest = api.pendingRequests()
         async let trendingMovies = api.trendingMovies()
         async let trendingTV = api.trendingTV()
         async let popularMovies = api.popularMovies()
@@ -157,7 +182,6 @@ struct BrowseView: View {
         async let movieGenreRequest = api.movieGenres()
         async let tvGenreRequest = api.tvGenres()
 
-        if let value = try? await pendingRequest { pending = value.filter { $0.status != 5 } }
         if let value = try? await trendingMovies { discovery["trendingMovies"] = value }
         if let value = try? await trendingTV { discovery["trendingTV"] = value }
         if let value = try? await popularMovies { discovery["popularMovies"] = value }
@@ -190,6 +214,22 @@ struct BrowseView: View {
                 if isMovie { movieGenreItems[genreID] = items }
                 else { tvGenreItems[genreID] = items }
             }
+        }
+    }
+
+    private func filtered(_ items: [JellyfinItem]) -> [JellyfinItem] {
+        switch mediaFilter {
+        case .all: items
+        case .movies: items.filter { $0.type == "Movie" }
+        case .tv: items.filter { $0.type != "Movie" }
+        }
+    }
+
+    private func filtered(_ items: [SeerrMedia]) -> [SeerrMedia] {
+        switch mediaFilter {
+        case .all: items
+        case .movies: items.filter { !$0.isTV }
+        case .tv: items.filter(\.isTV)
         }
     }
 }

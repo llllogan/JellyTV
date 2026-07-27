@@ -9,11 +9,14 @@ struct CatalogView: View {
     }
 
     @ObservedObject var session: JellyfinSession
+    @ObservedObject var seerrSession: SeerrSession
     let type: String
     let title: String
 
     @State private var items: [JellyfinItem] = []
     @State private var error: String?
+    @State private var showProfile = false
+    @State private var showPendingRequests = false
 
     private var genreSections: [GenreSection] {
         var grouped: [String: [JellyfinItem]] = [:]
@@ -58,8 +61,25 @@ struct CatalogView: View {
                 }
             }
             .navigationTitle(title)
+            .toolbarTitleDisplayMode(.inlineLarge)
             .task { await load() }
             .refreshable { await load() }
+            .toolbar {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if seerrSession.user?.canApproveRequests == true {
+                        PendingRequestsView.ApprovalEnvelopeButton(session: seerrSession) {
+                            showPendingRequests = true
+                        }
+                    }
+                    Button { showProfile = true } label: {
+                        Image(systemName: "externaldrive.connected.to.line.below")
+                    }
+                }
+            }
+            .sheet(isPresented: $showProfile) {
+                ProfileView(jellyfinSession: session, seerrSession: seerrSession)
+            }
+            .sheet(isPresented: $showPendingRequests) { PendingRequestsView(session: seerrSession) }
         }
     }
 

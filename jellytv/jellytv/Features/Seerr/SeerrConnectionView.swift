@@ -41,7 +41,7 @@ struct SeerrConnectionView: View {
             }
             .navigationTitle("Connect Seerr")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) { Button(role: .close) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(session.isWorking ? "Connecting…" : "Connect") {
                         Task {

@@ -20,6 +20,7 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
     let childCount: Int?
     let seriesID: String?
     let seriesPrimaryImageTag: String?
+    let canDelete: Bool?
     let userData: UserData?
     let imageTags: [String: String]?
 
@@ -74,6 +75,11 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
         return "\(Self.durationText(for: max(0, runTimeTicks - playbackPosition))) remaining"
     }
 
+    var canResume: Bool {
+        guard let progress = progressPercent else { return false }
+        return progress > 0.02 && progress < 0.95
+    }
+
     var seasonCountText: String? {
         guard type == "Series", let childCount else { return nil }
         return childCount == 1 ? "1 season" : "\(childCount) seasons"
@@ -103,6 +109,7 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
         case childCount = "ChildCount"
         case seriesID = "SeriesId"
         case seriesPrimaryImageTag = "SeriesPrimaryImageTag"
+        case canDelete = "CanDelete"
         case userData = "UserData"
         case imageTags = "ImageTags"
     }

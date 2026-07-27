@@ -25,7 +25,7 @@ struct SearchLibraryView: View {
                         }
                     }
                     if !seerrItems.isEmpty {
-                        Section("Discover & Request") {
+                        Section("Avaiable to request") {
                             ForEach(seerrItems) { SeerrSearchRow(media: $0, session: seerrSession) }
                         }
                     }
@@ -42,6 +42,7 @@ struct SearchLibraryView: View {
             .onSubmit(of: .search) { Task { await search() } }
             .onAppear { isSearchFocused = true }
             .navigationTitle("Search")
+            .toolbarTitleDisplayMode(.inlineLarge)
         }
     }
 
