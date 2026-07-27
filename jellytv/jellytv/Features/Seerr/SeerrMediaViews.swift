@@ -117,7 +117,7 @@ struct SeerrMediaDetailView: View {
             Label(existingStatus, systemImage: "clock.fill").foregroundStyle(.orange)
         } else if isTV {
             Button { showSeasonPicker = true } label: {
-                Label("Request", systemImage: "arrow.down")
+                Label("Request", systemImage: "plus")
                     .padding(.horizontal, 14)
                     .frame(height: 32)
             }
@@ -125,7 +125,7 @@ struct SeerrMediaDetailView: View {
             .controlSize(.regular)
         } else {
             Button { Task { await request() } } label: {
-                Label(isRequesting ? "Requesting…" : "Request", systemImage: "arrow.down")
+                Label(isRequesting ? "Requesting…" : "Request", systemImage: "plus")
                     .padding(.horizontal, 14)
                     .frame(height: 32)
             }

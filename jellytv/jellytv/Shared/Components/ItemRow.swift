@@ -16,7 +16,7 @@ struct ItemRow: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     if let percent = item.progressPercent {
-                        ProgressView(value: percent).tint(.orange)
+                        ProgressView(value: percent).tint(.accentColor)
                     }
                 }
             }

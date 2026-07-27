@@ -21,6 +21,10 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
     let seriesID: String?
     let seriesPrimaryImageTag: String?
     let canDelete: Bool?
+    let parentID: String?
+    let seasonID: String?
+    let seasonName: String?
+    let seriesName: String?
     let userData: UserData?
     let imageTags: [String: String]?
 
@@ -110,6 +114,10 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
         case seriesID = "SeriesId"
         case seriesPrimaryImageTag = "SeriesPrimaryImageTag"
         case canDelete = "CanDelete"
+        case parentID = "ParentId"
+        case seasonID = "SeasonId"
+        case seasonName = "SeasonName"
+        case seriesName = "SeriesName"
         case userData = "UserData"
         case imageTags = "ImageTags"
     }

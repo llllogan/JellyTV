@@ -6,26 +6,69 @@ struct ItemDetailView: View {
     @EnvironmentObject private var session: JellyfinSession
     @State private var details: JellyfinItem?
     @State private var children: [JellyfinItem] = []
+    @State private var hierarchyParent: JellyfinItem?
     @State private var error: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                ArtworkView(item: item, width: 180, height: 270)
-                    .frame(maxWidth: .infinity)
-                Text((details ?? item).name).font(.title.bold())
-                actionRow
-                if let overview = (details ?? item).overview { Text(overview).foregroundStyle(.secondary) }
-                ForEach(children) { child in ItemRow(item: child) }
-                if let error {
-                    Text(error).foregroundStyle(.red)
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 16) {
+                    ArtworkView(item: item, width: 180, height: 270)
+                        .frame(maxWidth: .infinity)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text((details ?? item).name).font(.title.bold())
+                        if let episodeMetadata {
+                            Text(episodeMetadata).foregroundStyle(.secondary)
+                        }
+                    }
+                    actionRow
+                    if let overview = (details ?? item).overview { Text(overview).foregroundStyle(.secondary) }
+                    ForEach(children) { child in ItemRow(item: child) }
+                    if let error { Text(error).foregroundStyle(.red) }
                 }
+                .padding(.bottom)
             }
-            .padding()
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+
+            if let hierarchyParent {
+                Section {
+                    hierarchyRow(hierarchyParent)
+                }
+                .listRowBackground(Color(uiColor: .systemGroupedBackground))
+            }
         }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(.compact)
+        .scrollContentBackground(.hidden)
+        .background(Color(uiColor: .systemBackground))
         .navigationTitle(item.type == "Series" ? "Show" : "Details")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: item.id) { await load() }
+    }
+
+    private func hierarchyRow(_ parent: JellyfinItem) -> some View {
+        NavigationLink {
+            ItemDetailView(item: parent).id(parent.id)
+        } label: {
+            HStack(spacing: 12) {
+                ArtworkView(item: parent, width: 58, height: 82)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Found in").font(.caption).foregroundStyle(.secondary)
+                    Text(parent.name).font(.headline)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var episodeMetadata: String? {
+        let target = details ?? item
+        guard target.type == "Episode",
+              let episode = target.indexNumber,
+              let season = target.parentIndexNumber
+        else { return nil }
+        return "e\(episode) s\(season)"
     }
 
     @ViewBuilder private var actionRow: some View {
@@ -48,7 +91,7 @@ struct ItemDetailView: View {
                 .controlSize(.regular)
 
                 Button { } label: {
-                    Image(systemName: "arrow.down")
+                    Image(systemName: "tray.and.arrow.down.fill")
                         .frame(width: 44, height: 44)
                         .background(.thinMaterial, in: Circle())
                 }
@@ -72,6 +115,7 @@ struct ItemDetailView: View {
         guard let api = session.api else { return }
         details = nil
         children = []
+        hierarchyParent = nil
         error = nil
         do {
             details = try await api.item(id: item.id)
@@ -79,6 +123,11 @@ struct ItemDetailView: View {
                 children = try await api.children(parentID: item.id, type: "Season")
             } else if item.type == "Season" {
                 children = try await api.children(parentID: item.id, type: "Episode")
+            }
+            let current = details ?? item
+            let parentID = current.type == "Episode" ? (current.seasonID ?? current.parentID) : current.parentID
+            if (current.type == "Episode" || current.type == "Season"), let parentID {
+                hierarchyParent = try await api.item(id: parentID)
             }
         } catch {
             session.handle(error)

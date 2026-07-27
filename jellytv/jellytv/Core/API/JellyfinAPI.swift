@@ -74,7 +74,7 @@ struct JellyfinAPI {
             URLQueryItem(name: "Recursive", value: "true"),
             URLQueryItem(name: "SortBy", value: "SortName"),
             URLQueryItem(name: "SortOrder", value: "Ascending"),
-            URLQueryItem(name: "Fields", value: "Overview,PrimaryImageAspectRatio,UserData,Genres,RunTimeTicks,ChildCount,SeriesId,SeriesPrimaryImageTag,CanDelete"),
+            URLQueryItem(name: "Fields", value: "Overview,PrimaryImageAspectRatio,UserData,Genres,RunTimeTicks,ChildCount,SeriesId,SeriesPrimaryImageTag,CanDelete,ParentId,SeasonId,SeasonName,SeriesName"),
             URLQueryItem(name: "StartIndex", value: "0"),
             URLQueryItem(name: "Limit", value: "100"),
         ]
@@ -94,7 +94,7 @@ struct JellyfinAPI {
         try await get(
             "Users/\(account.userID)/Items/Resume",
             query: [
-                URLQueryItem(name: "Fields", value: "Overview,UserData,RunTimeTicks,SeriesId,SeriesPrimaryImageTag,CanDelete"),
+                URLQueryItem(name: "Fields", value: "Overview,UserData,RunTimeTicks,SeriesId,SeriesPrimaryImageTag,CanDelete,ParentId,SeasonId,SeasonName,SeriesName"),
                 URLQueryItem(name: "Limit", value: "20"),
             ],
             as: ItemsResponse.self
@@ -106,7 +106,7 @@ struct JellyfinAPI {
             "Shows/NextUp",
             query: [
                 URLQueryItem(name: "UserId", value: account.userID),
-                URLQueryItem(name: "Fields", value: "Overview,UserData,RunTimeTicks,SeriesId,SeriesPrimaryImageTag,CanDelete"),
+                URLQueryItem(name: "Fields", value: "Overview,UserData,RunTimeTicks,SeriesId,SeriesPrimaryImageTag,CanDelete,ParentId,SeasonId,SeasonName,SeriesName"),
                 URLQueryItem(name: "Limit", value: "20"),
             ],
             as: ItemsResponse.self
@@ -116,7 +116,7 @@ struct JellyfinAPI {
     func item(id: String) async throws -> JellyfinItem {
         try await get(
             "Users/\(account.userID)/Items/\(id)",
-            query: [URLQueryItem(name: "Fields", value: "Overview,UserData,MediaSources,SeriesId,SeriesPrimaryImageTag,CanDelete")],
+            query: [URLQueryItem(name: "Fields", value: "Overview,UserData,MediaSources,SeriesId,SeriesPrimaryImageTag,CanDelete,ParentId,SeasonId,SeasonName,SeriesName")],
             as: JellyfinItem.self
         )
     }
@@ -127,7 +127,7 @@ struct JellyfinAPI {
             query: [
                 URLQueryItem(name: "ParentId", value: parentID),
                 URLQueryItem(name: "IncludeItemTypes", value: type),
-                URLQueryItem(name: "Fields", value: "Overview,UserData,SeriesId,SeriesPrimaryImageTag,CanDelete"),
+                URLQueryItem(name: "Fields", value: "Overview,UserData,SeriesId,SeriesPrimaryImageTag,CanDelete,ParentId,SeasonId,SeasonName,SeriesName"),
                 URLQueryItem(name: "SortBy", value: "IndexNumber,SortName"),
             ],
             as: ItemsResponse.self
