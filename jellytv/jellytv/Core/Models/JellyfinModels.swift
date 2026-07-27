@@ -15,6 +15,8 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
     let overview: String?
     let parentIndexNumber: Int?
     let indexNumber: Int?
+    let genres: [String]?
+    let runTimeTicks: Int64?
     let userData: UserData?
     let imageTags: [String: String]?
 
@@ -48,6 +50,18 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
         return productionYear.map(String.init) ?? type
     }
 
+    var runtimeText: String? {
+        guard let runTimeTicks else { return nil }
+        let totalMinutes = Int(runTimeTicks / 600_000_000)
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        }
+        return "\(minutes)m"
+    }
+
     enum CodingKeys: String, CodingKey {
         case id = "Id"
         case name = "Name"
@@ -56,6 +70,8 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
         case overview = "Overview"
         case parentIndexNumber = "ParentIndexNumber"
         case indexNumber = "IndexNumber"
+        case genres = "Genres"
+        case runTimeTicks = "RunTimeTicks"
         case userData = "UserData"
         case imageTags = "ImageTags"
     }

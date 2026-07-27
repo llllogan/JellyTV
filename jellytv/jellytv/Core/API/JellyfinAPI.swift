@@ -74,7 +74,7 @@ struct JellyfinAPI {
             URLQueryItem(name: "Recursive", value: "true"),
             URLQueryItem(name: "SortBy", value: "SortName"),
             URLQueryItem(name: "SortOrder", value: "Ascending"),
-            URLQueryItem(name: "Fields", value: "Overview,PrimaryImageAspectRatio,UserData"),
+            URLQueryItem(name: "Fields", value: "Overview,PrimaryImageAspectRatio,UserData,Genres,RunTimeTicks"),
             URLQueryItem(name: "StartIndex", value: "0"),
             URLQueryItem(name: "Limit", value: "100"),
         ]
