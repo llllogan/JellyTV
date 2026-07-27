@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 110;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXFileReference section */
@@ -21,8 +21,10 @@
 /* Begin PBXFrameworksBuildPhase section */
 		02F8768C3016C39300C9FE18 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -55,6 +57,8 @@
 				02F8768D3016C39300C9FE18 /* Resources */,
 			);
 			buildRules = (
+			);
+			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
 				02F876913016C39300C9FE18 /* jellytv */,
@@ -101,21 +105,25 @@
 /* Begin PBXResourcesBuildPhase section */
 		02F8768D3016C39300C9FE18 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		02F8768B3016C39300C9FE18 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
 			files = (
 			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		02F876983016C39600C9FE18 /* Debug configuration for PBXProject "jellytv" */ = {
+		02F876983016C39600C9FE18 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -168,7 +176,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.6;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -179,7 +187,7 @@
 			};
 			name = Debug;
 		};
-		02F876993016C39600C9FE18 /* Release configuration for PBXProject "jellytv" */ = {
+		02F876993016C39600C9FE18 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -226,7 +234,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.6;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -236,7 +244,7 @@
 			};
 			name = Release;
 		};
-		02F8769B3016C39600C9FE18 /* Debug configuration for PBXNativeTarget "jellytv" */ = {
+		02F8769B3016C39600C9FE18 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = appicon;
@@ -254,7 +262,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 26;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -272,7 +280,7 @@
 			};
 			name = Debug;
 		};
-		02F8769C3016C39600C9FE18 /* Release configuration for PBXNativeTarget "jellytv" */ = {
+		02F8769C3016C39600C9FE18 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = appicon;
@@ -290,7 +298,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 26;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -314,21 +322,22 @@
 		02F8768A3016C39300C9FE18 /* Build configuration list for PBXProject "jellytv" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				02F876983016C39600C9FE18 /* Debug configuration for PBXProject "jellytv" */,
-				02F876993016C39600C9FE18 /* Release configuration for PBXProject "jellytv" */,
+				02F876983016C39600C9FE18 /* Debug */,
+				02F876993016C39600C9FE18 /* Release */,
 			);
+			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		02F8769A3016C39600C9FE18 /* Build configuration list for PBXNativeTarget "jellytv" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				02F8769B3016C39600C9FE18 /* Debug configuration for PBXNativeTarget "jellytv" */,
-				02F8769C3016C39600C9FE18 /* Release configuration for PBXNativeTarget "jellytv" */,
+				02F8769B3016C39600C9FE18 /* Debug */,
+				02F8769C3016C39600C9FE18 /* Release */,
 			);
+			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
 	rootObject = 02F876873016C39300C9FE18 /* Project object */;
-	validationLevel = 1;
 }
