@@ -10,11 +10,14 @@ import SwiftUI
 @main
 struct jellytvApp: App {
     @StateObject private var player = PlayerCoordinator()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(player)
-                .fullScreenCover(isPresented: $player.isPresenting) { NativePlayerView(coordinator: player) }
+                .fullScreenCover(isPresented: $player.isPresenting) {
+                    NativePlayerView(coordinator: player)
+                }
         }
     }
 }
