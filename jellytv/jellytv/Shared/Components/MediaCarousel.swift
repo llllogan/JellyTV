@@ -21,10 +21,12 @@ struct MediaCarousel: View {
                 ForEach(items) { item in
                     NavigationLink {
                         ItemDetailView(item: item)
+                            .id(item.id)
                     } label: {
                         MediaCard(item: item, detailStyle: detailStyle)
                     }
                     .buttonStyle(.plain)
+                    .contentShape(Rectangle())
                 }
             }
             .scrollTargetLayout()

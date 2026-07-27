@@ -13,10 +13,11 @@ struct SeerrMediaCarousel: View {
         ScrollView(.horizontal) {
             LazyHStack(spacing: 12) {
                 ForEach(items) { item in
-                    NavigationLink { SeerrMediaDetailView(media: item, session: session) } label: {
+                    NavigationLink { SeerrMediaDetailView(media: item, session: session).id(item.requestableID) } label: {
                         SeerrMediaCard(media: item, status: requestStatuses[item.requestableID])
                     }
                     .buttonStyle(.plain)
+                    .contentShape(Rectangle())
                 }
             }
             .scrollTargetLayout().padding(.horizontal, 16).padding(.vertical, 4)
@@ -47,7 +48,7 @@ struct SeerrSearchRow: View {
     let media: SeerrMedia
     @ObservedObject var session: SeerrSession
     var body: some View {
-        NavigationLink { SeerrMediaDetailView(media: media, session: session) } label: {
+        NavigationLink { SeerrMediaDetailView(media: media, session: session).id(media.requestableID) } label: {
             HStack(spacing: 12) {
                 AsyncImage(url: media.artworkURL) { $0.resizable().scaledToFill() } placeholder: { Color.gray.opacity(0.18) }
                     .frame(width: 70, height: 100).clipShape(RoundedRectangle(cornerRadius: 8))
@@ -97,7 +98,7 @@ struct SeerrMediaDetailView: View {
             }.padding()
         }
         .navigationTitle(isTV ? "Show" : "Movie").navigationBarTitleDisplayMode(.inline)
-        .task { await load() }
+        .task(id: media.requestableID) { await load() }
     }
 
     @ViewBuilder private var requestArea: some View {
@@ -128,6 +129,11 @@ struct SeerrMediaDetailView: View {
 
     private func load() async {
         guard let api = session.api else { return }
+        movie = nil
+        show = nil
+        selectedSeasons = []
+        submittedStatus = nil
+        error = nil
         do {
             if isTV { show = try await api.tv(id: media.requestableID) }
             else { movie = try await api.movie(id: media.requestableID) }

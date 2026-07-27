@@ -29,7 +29,7 @@ struct ItemDetailView: View {
         }
         .navigationTitle(item.type == "Series" ? "Show" : "Details")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await load() }
+        .task(id: item.id) { await load() }
     }
 
     private var playButton: some View {
@@ -43,6 +43,9 @@ struct ItemDetailView: View {
 
     private func load() async {
         guard let api = session.api else { return }
+        details = nil
+        children = []
+        error = nil
         do {
             details = try await api.item(id: item.id)
             if item.type == "Series" {

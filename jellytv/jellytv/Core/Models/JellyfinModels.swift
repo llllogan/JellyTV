@@ -18,17 +18,29 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
     let genres: [String]?
     let runTimeTicks: Int64?
     let childCount: Int?
+    let seriesID: String?
+    let seriesPrimaryImageTag: String?
     let userData: UserData?
     let imageTags: [String: String]?
 
     var imageURL: URL? {
-        guard let account = JellyfinSession.sharedAccount,
-              let tag = imageTags?["Primary"]
+        guard let account = JellyfinSession.sharedAccount
         else {
             return nil
         }
 
-        return account.baseURL.appending(path: "Items/\(id)/Images/Primary").appending(
+        let artworkItemID: String
+        let tag: String?
+        if type == "Episode", let seriesID, let seriesPrimaryImageTag {
+            artworkItemID = seriesID
+            tag = seriesPrimaryImageTag
+        } else {
+            artworkItemID = id
+            tag = imageTags?["Primary"]
+        }
+
+        guard let tag else { return nil }
+        return account.baseURL.appending(path: "Items/\(artworkItemID)/Images/Primary").appending(
             queryItems: [
                 URLQueryItem(name: "tag", value: tag),
                 URLQueryItem(name: "api_key", value: account.token),
@@ -89,6 +101,8 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
         case genres = "Genres"
         case runTimeTicks = "RunTimeTicks"
         case childCount = "ChildCount"
+        case seriesID = "SeriesId"
+        case seriesPrimaryImageTag = "SeriesPrimaryImageTag"
         case userData = "UserData"
         case imageTags = "ImageTags"
     }

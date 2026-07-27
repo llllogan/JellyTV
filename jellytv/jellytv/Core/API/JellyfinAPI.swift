@@ -74,7 +74,7 @@ struct JellyfinAPI {
             URLQueryItem(name: "Recursive", value: "true"),
             URLQueryItem(name: "SortBy", value: "SortName"),
             URLQueryItem(name: "SortOrder", value: "Ascending"),
-            URLQueryItem(name: "Fields", value: "Overview,PrimaryImageAspectRatio,UserData,Genres,RunTimeTicks,ChildCount"),
+            URLQueryItem(name: "Fields", value: "Overview,PrimaryImageAspectRatio,UserData,Genres,RunTimeTicks,ChildCount,SeriesId,SeriesPrimaryImageTag"),
             URLQueryItem(name: "StartIndex", value: "0"),
             URLQueryItem(name: "Limit", value: "100"),
         ]
@@ -94,7 +94,7 @@ struct JellyfinAPI {
         try await get(
             "Users/\(account.userID)/Items/Resume",
             query: [
-                URLQueryItem(name: "Fields", value: "Overview,UserData,RunTimeTicks"),
+                URLQueryItem(name: "Fields", value: "Overview,UserData,RunTimeTicks,SeriesId,SeriesPrimaryImageTag"),
                 URLQueryItem(name: "Limit", value: "20"),
             ],
             as: ItemsResponse.self
@@ -106,7 +106,7 @@ struct JellyfinAPI {
             "Shows/NextUp",
             query: [
                 URLQueryItem(name: "UserId", value: account.userID),
-                URLQueryItem(name: "Fields", value: "Overview,UserData,RunTimeTicks"),
+                URLQueryItem(name: "Fields", value: "Overview,UserData,RunTimeTicks,SeriesId,SeriesPrimaryImageTag"),
                 URLQueryItem(name: "Limit", value: "20"),
             ],
             as: ItemsResponse.self
@@ -116,7 +116,7 @@ struct JellyfinAPI {
     func item(id: String) async throws -> JellyfinItem {
         try await get(
             "Users/\(account.userID)/Items/\(id)",
-            query: [URLQueryItem(name: "Fields", value: "Overview,UserData,MediaSources")],
+            query: [URLQueryItem(name: "Fields", value: "Overview,UserData,MediaSources,SeriesId,SeriesPrimaryImageTag")],
             as: JellyfinItem.self
         )
     }
@@ -127,7 +127,7 @@ struct JellyfinAPI {
             query: [
                 URLQueryItem(name: "ParentId", value: parentID),
                 URLQueryItem(name: "IncludeItemTypes", value: type),
-                URLQueryItem(name: "Fields", value: "Overview,UserData"),
+                URLQueryItem(name: "Fields", value: "Overview,UserData,SeriesId,SeriesPrimaryImageTag"),
                 URLQueryItem(name: "SortBy", value: "IndexNumber,SortName"),
             ],
             as: ItemsResponse.self
@@ -170,9 +170,17 @@ struct JellyfinAPI {
             )
         }
 
-        return account.baseURL.appending(path: "Videos/\(itemID)/stream").appending(
+        // The static stream endpoint can hand AVPlayer an unsupported audio codec
+        // (such as DTS or EAC3). HLS lets Jellyfin transcode audio to AAC.
+        return account.baseURL.appending(path: "Videos/\(itemID)/master.m3u8").appending(
             queryItems: [
-                URLQueryItem(name: "static", value: "true"),
+                URLQueryItem(name: "MediaSourceId", value: source.id),
+                URLQueryItem(name: "Static", value: "false"),
+                URLQueryItem(name: "VideoCodec", value: "h264"),
+                URLQueryItem(name: "AudioCodec", value: "aac"),
+                URLQueryItem(name: "MaxAudioChannels", value: "2"),
+                URLQueryItem(name: "SegmentContainer", value: "ts"),
+                URLQueryItem(name: "MinSegments", value: "2"),
                 URLQueryItem(name: "api_key", value: account.token),
             ]
         )

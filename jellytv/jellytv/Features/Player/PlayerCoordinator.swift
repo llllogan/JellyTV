@@ -1,4 +1,5 @@
 import AVKit
+import AVFAudio
 import Combine
 
 @MainActor
@@ -14,6 +15,7 @@ final class PlayerCoordinator: NSObject, ObservableObject {
 
     func play(item: JellyfinItem, api: JellyfinAPI) async throws {
         stop()
+        try configureAudioSession()
 
         let resumeTicks = item.userData?.playbackPositionTicks ?? 0
         let info = try await api.playbackInfo(itemID: item.id, positionTicks: resumeTicks)
@@ -61,6 +63,12 @@ final class PlayerCoordinator: NSObject, ObservableObject {
         player.play()
     }
 
+    private func configureAudioSession() throws {
+        let audioSession = AVAudioSession.sharedInstance()
+        try audioSession.setCategory(.playback, mode: .moviePlayback, policy: .longFormVideo)
+        try audioSession.setActive(true)
+    }
+
     func stop() {
         if let item, let api {
             Task {
@@ -81,6 +89,7 @@ final class PlayerCoordinator: NSObject, ObservableObject {
         player = nil
         controller = nil
         isPresenting = false
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     private func progress(_ time: CMTime) async {
