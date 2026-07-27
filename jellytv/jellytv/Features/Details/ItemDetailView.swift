@@ -44,6 +44,7 @@ struct ItemDetailView: View {
             }
             .listRowInsets(EdgeInsets())
             .listRowSeparator(.hidden)
+            .listRowBackground(Color(uiColor: .systemBackground))
 
             if !children.isEmpty {
                 Section(item.type == "Season" ? "Episodes" : "Seasons") {
@@ -60,7 +61,7 @@ struct ItemDetailView: View {
                 Section {
                     hierarchyRow(hierarchyParent)
                 }
-                .listRowBackground(Color(uiColor: .systemGroupedBackground))
+                .listRowBackground(Color(uiColor: .secondarySystemBackground))
             }
         }
         .listStyle(.insetGrouped)

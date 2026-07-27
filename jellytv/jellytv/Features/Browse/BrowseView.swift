@@ -34,6 +34,7 @@ struct BrowseView: View {
     @State private var hasLoaded = false
     @State private var mediaFilter: MediaFilter = .all
     @State private var serverReachable = true
+    @State private var selectedDownloadedItem: JellyfinItem?
 
     private let discoverySections = [
         ("Trending Movies", "trendingMovies"),
@@ -47,16 +48,35 @@ struct BrowseView: View {
     var body: some View {
         NavigationStack {
             List {
-                if !filteredDownloaded.isEmpty {
-                    Section("On my device") {
-                        DownloadedMediaCarousel(items: filteredDownloaded)
-                            .listRowInsets(EdgeInsets())
+                if showsDownloadedGrid {
+                    if filteredDownloaded.isEmpty {
+                        ContentUnavailableView(
+                            "No media on my device",
+                            systemImage: "tray",
+                            description: Text("Movies and episodes saved to your device will appear here and can be watched offline.")
+                        )
+                    } else {
+                        Section("On my device") {
+                            AdaptiveMediaGrid(
+                                items: filteredDownloaded,
+                                detailStyle: { $0.type == "Episode" ? .remainingTime : .runtime },
+                                onSelect: { selectedDownloadedItem = $0 }
+                            )
+                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
+                        }
                     }
-                }
+                } else {
+                    if !filteredDownloaded.isEmpty {
+                        Section("On my device") {
+                            DownloadedMediaCarousel(items: filteredDownloaded)
+                                .listRowInsets(EdgeInsets())
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                        }
+                    }
 
-                if serverReachable && mediaFilter != .downloaded {
                     if !filtered(resume).isEmpty {
                         Section("Continue Watching") {
                             MediaCarousel(items: filtered(resume), detailStyle: .remainingTime)
@@ -103,22 +123,24 @@ struct BrowseView: View {
                             items: filtered(tvGenreItems[genre.id] ?? [])
                         )
                     }
-                }
 
-                if !serverReachable && filteredDownloaded.isEmpty {
-                    ContentUnavailableView("No media on my device", systemImage: "tray", description: Text("Movies and episodes saved to your device will appear here when Jellyfin is unavailable."))
-                } else if serverReachable && resume.isEmpty && nextUp.isEmpty && error == nil && filteredDownloaded.isEmpty {
-                    ContentUnavailableView(
-                        "Nothing to continue",
-                        systemImage: "play.circle",
-                        description: Text("Start a movie or show and it will appear here.")
-                    )
-                }
-                if let error {
-                    Text(error).foregroundStyle(.red)
+                    if resume.isEmpty && nextUp.isEmpty && error == nil && filteredDownloaded.isEmpty {
+                        ContentUnavailableView(
+                            "Nothing to continue",
+                            systemImage: "play.circle",
+                            description: Text("Start a movie or show and it will appear here.")
+                        )
+                    }
+                    if let error {
+                        Text(error).foregroundStyle(.red)
+                    }
                 }
             }
             .listStyle(.plain)
+            .navigationDestination(item: $selectedDownloadedItem) { item in
+                ItemDetailView(item: item)
+                    .id(item.id)
+            }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu {
@@ -275,5 +297,9 @@ struct BrowseView: View {
         case .tv: return items.filter { $0.type == "Episode" }
         case .all, .downloaded: return items
         }
+    }
+
+    private var showsDownloadedGrid: Bool {
+        mediaFilter == .downloaded || !serverReachable
     }
 }

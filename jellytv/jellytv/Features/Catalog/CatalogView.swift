@@ -22,31 +22,6 @@ struct CatalogView: View {
         var id: String { genre }
     }
 
-    private struct DownloadGrid: View {
-        let items: [JellyfinItem]
-        let detailStyle: MediaCarousel.DetailStyle
-        let onSelect: (JellyfinItem) -> Void
-
-        private let columns = [GridItem(.adaptive(minimum: 145, maximum: 200), spacing: 12)]
-
-        var body: some View {
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(items) { item in
-                    GeometryReader { proxy in
-                        Button {
-                            onSelect(item)
-                        } label: {
-                            MediaCard(item: item, detailStyle: detailStyle, cardWidth: proxy.size.width)
-                        }
-                        .buttonStyle(.plain)
-                        .contentShape(Rectangle())
-                    }
-                    .aspectRatio(148 / 237, contentMode: .fit)
-                }
-            }
-        }
-    }
-
     @ObservedObject var session: JellyfinSession
     @ObservedObject var seerrSession: SeerrSession
     @EnvironmentObject private var downloads: OfflineDownloadManager
@@ -109,9 +84,9 @@ struct CatalogView: View {
                         )
                     } else {
                         Section("On my device") {
-                            DownloadGrid(
+                            AdaptiveMediaGrid(
                                 items: downloadedItems,
-                                detailStyle: type == "Movie" ? .runtime : .remainingTime,
+                                detailStyle: { _ in type == "Movie" ? .runtime : .remainingTime },
                                 onSelect: { selectedDownloadedItem = $0 }
                             )
                             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
