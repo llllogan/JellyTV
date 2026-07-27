@@ -94,7 +94,7 @@ struct JellyfinAPI {
         try await get(
             "Users/\(account.userID)/Items/Resume",
             query: [
-                URLQueryItem(name: "Fields", value: "Overview,UserData"),
+                URLQueryItem(name: "Fields", value: "Overview,UserData,RunTimeTicks"),
                 URLQueryItem(name: "Limit", value: "20"),
             ],
             as: ItemsResponse.self

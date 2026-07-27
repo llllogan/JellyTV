@@ -10,7 +10,10 @@ struct BrowseView: View {
             List {
                 if !resume.isEmpty {
                     Section("Continue Watching") {
-                        ForEach(resume) { ItemRow(item: $0) }
+                        MediaCarousel(items: resume, detailStyle: .remainingTime)
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
                     }
                 } else if error == nil {
                     ContentUnavailableView(
@@ -23,6 +26,7 @@ struct BrowseView: View {
                     Text(error).foregroundStyle(.red)
                 }
             }
+            .listStyle(.plain)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Sign Out") { session.logout() }

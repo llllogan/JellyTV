@@ -52,7 +52,17 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
 
     var runtimeText: String? {
         guard let runTimeTicks else { return nil }
-        let totalMinutes = Int(runTimeTicks / 600_000_000)
+        return Self.durationText(for: runTimeTicks)
+    }
+
+    var remainingTimeText: String? {
+        guard let runTimeTicks else { return nil }
+        let playbackPosition = userData?.playbackPositionTicks ?? 0
+        return "\(Self.durationText(for: max(0, runTimeTicks - playbackPosition))) remaining"
+    }
+
+    private static func durationText(for ticks: Int64) -> String {
+        let totalMinutes = Int(ticks / 600_000_000)
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
 

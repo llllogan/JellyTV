@@ -1,7 +1,18 @@
 import SwiftUI
 
 struct MediaCarousel: View {
+    enum DetailStyle {
+        case runtime
+        case remainingTime
+    }
+
     let items: [JellyfinItem]
+    let detailStyle: DetailStyle
+
+    init(items: [JellyfinItem], detailStyle: DetailStyle = .runtime) {
+        self.items = items
+        self.detailStyle = detailStyle
+    }
 
     var body: some View {
         ScrollView(.horizontal) {
@@ -10,7 +21,7 @@ struct MediaCarousel: View {
                     NavigationLink {
                         ItemDetailView(item: item)
                     } label: {
-                        MediaCard(item: item)
+                        MediaCard(item: item, detailStyle: detailStyle)
                     }
                     .buttonStyle(.plain)
                 }
