@@ -9,7 +9,7 @@ struct ContentView: View {
             if session.isRestoring {
                 ProgressView("Restoring session…")
             } else if session.account == nil {
-                LoginView(session: session)
+                LoginView(session: session, seerrSession: seerrSession)
             } else {
                 MainTabView(session: session, seerrSession: seerrSession)
             }

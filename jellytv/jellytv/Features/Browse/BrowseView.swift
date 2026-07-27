@@ -5,6 +5,7 @@ struct BrowseView: View {
         case movies
         case tv
         case all
+        case downloaded
 
         var id: Self { self }
         var title: String {
@@ -12,12 +13,14 @@ struct BrowseView: View {
             case .movies: "Movies"
             case .tv: "TV"
             case .all: "All"
+            case .downloaded: "Downloaded"
             }
         }
     }
 
     @ObservedObject var session: JellyfinSession
     @ObservedObject var seerrSession: SeerrSession
+    @EnvironmentObject private var downloads: OfflineDownloadManager
     @State private var resume: [JellyfinItem] = []
     @State private var nextUp: [JellyfinItem] = []
     @State private var discovery: [String: [SeerrMedia]] = [:]
@@ -30,6 +33,7 @@ struct BrowseView: View {
     @State private var showPendingRequests = false
     @State private var hasLoaded = false
     @State private var mediaFilter: MediaFilter = .all
+    @State private var serverReachable = true
 
     private let discoverySections = [
         ("Trending Movies", "trendingMovies"),
@@ -43,54 +47,67 @@ struct BrowseView: View {
     var body: some View {
         NavigationStack {
             List {
-                if !filtered(resume).isEmpty {
-                    Section("Continue Watching") {
-                        MediaCarousel(items: filtered(resume), detailStyle: .remainingTime)
+                if !filteredDownloaded.isEmpty {
+                    Section("Downloaded") {
+                        MediaCarousel(items: filteredDownloaded)
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                     }
                 }
 
-                if !filtered(nextUp).isEmpty {
-                    Section("Next Up") {
-                        MediaCarousel(items: filtered(nextUp), detailStyle: .nextUp)
-                            .listRowInsets(EdgeInsets())
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                    }
-                }
-
-                ForEach(discoverySections, id: \.1) { section in
-                    if let items = discovery[section.1], !filtered(items).isEmpty {
-                        Section(section.0) {
-                            SeerrMediaCarousel(items: filtered(items), session: seerrSession)
+                if serverReachable && mediaFilter != .downloaded {
+                    if !filtered(resume).isEmpty {
+                        Section("Continue Watching") {
+                            MediaCarousel(items: filtered(resume), detailStyle: .remainingTime)
                                 .listRowInsets(EdgeInsets())
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                         }
                     }
+
+                    if !filtered(nextUp).isEmpty {
+                        Section("Next Up") {
+                            MediaCarousel(items: filtered(nextUp), detailStyle: .nextUp)
+                                .listRowInsets(EdgeInsets())
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                        }
+                    }
+
+                    ForEach(discoverySections, id: \.1) { section in
+                        if let items = discovery[section.1], !filtered(items).isEmpty {
+                            Section(section.0) {
+                                SeerrMediaCarousel(items: filtered(items), session: seerrSession)
+                                    .listRowInsets(EdgeInsets())
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
+                            }
+                        }
+                    }
+
+                    ForEach(movieGenres) { genre in
+                        SeerrGenreBrowseSection(
+                            genre: genre,
+                            mediaType: .movie,
+                            session: seerrSession,
+                            items: filtered(movieGenreItems[genre.id] ?? [])
+                        )
+                    }
+
+                    ForEach(tvGenres) { genre in
+                        SeerrGenreBrowseSection(
+                            genre: genre,
+                            mediaType: .tv,
+                            session: seerrSession,
+                            items: filtered(tvGenreItems[genre.id] ?? [])
+                        )
+                    }
                 }
 
-                ForEach(movieGenres) { genre in
-                    SeerrGenreBrowseSection(
-                        genre: genre,
-                        mediaType: .movie,
-                        session: seerrSession,
-                        items: filtered(movieGenreItems[genre.id] ?? [])
-                    )
-                }
-
-                ForEach(tvGenres) { genre in
-                    SeerrGenreBrowseSection(
-                        genre: genre,
-                        mediaType: .tv,
-                        session: seerrSession,
-                        items: filtered(tvGenreItems[genre.id] ?? [])
-                    )
-                }
-
-                if resume.isEmpty && nextUp.isEmpty && error == nil {
+                if !serverReachable && filteredDownloaded.isEmpty {
+                    ContentUnavailableView("No downloaded media", systemImage: "tray", description: Text("Downloaded movies and episodes will appear here when Jellyfin is unavailable."))
+                } else if serverReachable && resume.isEmpty && nextUp.isEmpty && error == nil && filteredDownloaded.isEmpty {
                     ContentUnavailableView(
                         "Nothing to continue",
                         systemImage: "play.circle",
@@ -150,6 +167,21 @@ struct BrowseView: View {
         hasLoaded = true
         guard let api = session.api else { return }
         error = nil
+        let reachability = await api.reachability()
+        if reachability == .unauthorized {
+            session.handle(JellyfinError.unauthorized)
+            return
+        }
+        serverReachable = reachability == .reachable
+        guard serverReachable else {
+            resume = []
+            nextUp = []
+            discovery = [:]
+            movieGenres = []
+            tvGenres = []
+            return
+        }
+        if let account = session.account { await downloads.syncQueuedProgress(account: account) }
 
         async let resumeRequest = api.resumeItems()
         async let nextUpRequest = api.nextUpEpisodes()
@@ -222,6 +254,7 @@ struct BrowseView: View {
         case .all: items
         case .movies: items.filter { $0.type == "Movie" }
         case .tv: items.filter { $0.type != "Movie" }
+        case .downloaded: []
         }
     }
 
@@ -230,6 +263,16 @@ struct BrowseView: View {
         case .all: items
         case .movies: items.filter { !$0.isTV }
         case .tv: items.filter(\.isTV)
+        case .downloaded: []
+        }
+    }
+
+    private var filteredDownloaded: [JellyfinItem] {
+        let items = downloads.downloadedItems(for: session.account)
+        switch mediaFilter {
+        case .movies: return items.filter { $0.type == "Movie" }
+        case .tv: return items.filter { $0.type == "Episode" }
+        case .all, .downloaded: return items
         }
     }
 }

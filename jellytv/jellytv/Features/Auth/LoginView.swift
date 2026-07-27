@@ -2,10 +2,11 @@ import SwiftUI
 
 struct LoginView: View {
     @ObservedObject var session: JellyfinSession
+    @ObservedObject var seerrSession: SeerrSession
     @State private var serverURL = ""
+    @State private var seerrURL = ""
     @State private var username = ""
     @State private var password = ""
-    @State private var allowsLocalHTTP = false
 
     var body: some View {
         NavigationStack {
@@ -15,12 +16,10 @@ struct LoginView: View {
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
                         .autocorrectionDisabled()
-                    Toggle("Allow HTTP for local development", isOn: $allowsLocalHTTP)
-                    if allowsLocalHTTP {
-                        Text("Use only for a server on your local network.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
+                    TextField("Seerr URL (optional)", text: $seerrURL)
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.URL)
+                        .autocorrectionDisabled()
                 }
                 Section("Sign in") {
                     TextField("Username", text: $username)
@@ -34,20 +33,34 @@ struct LoginView: View {
                     }
                 }
                 Section {
-                    Button(session.isWorking ? "Signing in…" : "Sign In") {
+                    Button(session.isWorking || seerrSession.isWorking ? "Signing in…" : "Sign In") {
                         Task {
+                            // Keep this view alive until the optional Seerr session has been
+                            // persisted. A successful Jellyfin login replaces LoginView.
+                            await signInToSeerrIfProvided()
                             await session.login(
                                 url: serverURL,
                                 username: username,
                                 password: password,
-                                permitsLocalHTTP: allowsLocalHTTP
+                                permitsLocalHTTP: true
                             )
                         }
                     }
-                    .disabled(session.isWorking || serverURL.isEmpty || username.isEmpty)
+                    .disabled(session.isWorking || seerrSession.isWorking || serverURL.isEmpty || username.isEmpty)
                 }
             }
             .navigationTitle("Jelly TV")
         }
+    }
+
+    private func signInToSeerrIfProvided() async {
+        let url = seerrURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty else { return }
+        _ = await seerrSession.connectWithJellyfin(
+            url: url,
+            username: username,
+            password: password,
+            permitsLocalHTTP: true
+        )
     }
 }

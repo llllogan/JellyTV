@@ -21,8 +21,8 @@ enum SeerrError: LocalizedError {
 struct SeerrAPI: Sendable {
     let account: SeerrAccount
 
-    static func jellyfinSignIn(url rawURL: String, username: String, password: String, permitsLocalHTTP: Bool) async throws -> SeerrAccount {
-        let baseURL = try validatedURL(rawURL, permitsLocalHTTP: permitsLocalHTTP)
+    static func jellyfinSignIn(url rawURL: String, username: String, password: String, permitsLocalHTTP _: Bool) async throws -> SeerrAccount {
+        let baseURL = try validatedURL(rawURL)
         var request = URLRequest(url: baseURL.appending(path: "api/v1/auth/jellyfin"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -30,15 +30,20 @@ struct SeerrAPI: Sendable {
         let (_, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw SeerrError.invalidResponse }
         guard 200 ..< 300 ~= http.statusCode else { throw failure(http) }
-        guard let rawCookie = http.value(forHTTPHeaderField: "Set-Cookie"),
-              let cookie = rawCookie.split(separator: ";").first,
-              cookie.contains("=")
-        else { throw SeerrError.invalidResponse }
-        return SeerrAccount(baseURL: baseURL, sessionCookie: String(cookie), apiKey: nil)
+        let headerFields = http.allHeaderFields.reduce(into: [String: String]()) { fields, entry in
+            guard let key = entry.key as? String, let value = entry.value as? String else { return }
+            fields[key] = value
+        }
+        let responseCookies = HTTPCookie.cookies(withResponseHeaderFields: headerFields, for: baseURL)
+        let storedCookies = HTTPCookieStorage.shared.cookies(for: baseURL) ?? []
+        guard let cookie = (responseCookies + storedCookies).first(where: { $0.name == "connect.sid" }) else {
+            throw SeerrError.requestFailed("Seerr signed in but did not provide a connect.sid session cookie.")
+        }
+        return SeerrAccount(baseURL: baseURL, sessionCookie: "\(cookie.name)=\(cookie.value)", apiKey: nil)
     }
 
-    static func apiKeyAccount(url rawURL: String, apiKey: String, permitsLocalHTTP: Bool) throws -> SeerrAccount {
-        let baseURL = try validatedURL(rawURL, permitsLocalHTTP: permitsLocalHTTP)
+    static func apiKeyAccount(url rawURL: String, apiKey: String, permitsLocalHTTP _: Bool) throws -> SeerrAccount {
+        let baseURL = try validatedURL(rawURL)
         guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw SeerrError.unauthorized
         }
@@ -171,16 +176,10 @@ struct SeerrAPI: Sendable {
         return .requestFailed("Seerr request failed (\(response.statusCode)): \(message)")
     }
 
-    private static func validatedURL(_ rawURL: String, permitsLocalHTTP: Bool) throws -> URL {
+    private static func validatedURL(_ rawURL: String) throws -> URL {
         guard let url = URL(string: rawURL.trimmingCharacters(in: .whitespacesAndNewlines)),
               let scheme = url.scheme?.lowercased(), ["https", "http"].contains(scheme), url.host != nil
         else { throw SeerrError.invalidServer }
-        if scheme == "http" && (!permitsLocalHTTP || !isLocal(url.host)) { throw SeerrError.insecureServer }
         return url
-    }
-
-    private static func isLocal(_ host: String?) -> Bool {
-        guard let host else { return false }
-        return host == "localhost" || host == "::1" || host.hasPrefix("127.") || host.hasPrefix("192.168.") || host.hasPrefix("10.") || host.hasPrefix("172.16.")
     }
 }

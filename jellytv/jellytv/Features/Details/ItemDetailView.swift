@@ -4,10 +4,13 @@ struct ItemDetailView: View {
     let item: JellyfinItem
     @EnvironmentObject private var player: PlayerCoordinator
     @EnvironmentObject private var session: JellyfinSession
+    @EnvironmentObject private var downloads: OfflineDownloadManager
     @State private var details: JellyfinItem?
     @State private var children: [JellyfinItem] = []
     @State private var hierarchyParent: JellyfinItem?
     @State private var error: String?
+    @State private var serverReachable = false
+    @State private var scrollPosition: String?
 
     var body: some View {
         List {
@@ -22,14 +25,26 @@ struct ItemDetailView: View {
                         }
                     }
                     actionRow
+                    if case let .failed(message) = downloads.state(for: (details ?? item).id, account: session.account) {
+                        Text(message).font(.footnote).foregroundStyle(.red)
+                    }
                     if let overview = (details ?? item).overview { Text(overview).foregroundStyle(.secondary) }
-                    ForEach(children) { child in ItemRow(item: child) }
                     if let error { Text(error).foregroundStyle(.red) }
                 }
                 .padding(.bottom)
+                .id("summary")
             }
             .listRowInsets(EdgeInsets())
             .listRowSeparator(.hidden)
+
+            if !children.isEmpty {
+                Section(item.type == "Season" ? "Episodes" : "Seasons") {
+                    ForEach(children) { child in
+                        ItemRow(item: child)
+                            .id(child.id)
+                    }
+                }
+            }
 
             if let hierarchyParent {
                 Section {
@@ -39,6 +54,7 @@ struct ItemDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .scrollPosition(id: $scrollPosition)
         .listSectionSpacing(.compact)
         .scrollContentBackground(.hidden)
         .background(Color(uiColor: .systemBackground))
@@ -90,33 +106,29 @@ struct ItemDetailView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.regular)
 
-                Button { } label: {
-                    Image(systemName: "tray.and.arrow.down.fill")
-                        .frame(width: 44, height: 44)
-                        .background(.thinMaterial, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Download")
-
-                if target.canDelete == true {
-                    Button { } label: {
-                        Image(systemName: "trash")
-                            .frame(width: 44, height: 44)
-                            .background(.thinMaterial, in: Circle())
-                    }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Delete")
-                }
+                downloadButton(for: target)
             }
         }
     }
 
     private func load() async {
-        guard let api = session.api else { return }
         details = nil
         children = []
         hierarchyParent = nil
         error = nil
+        guard let api = session.api else { return }
+        let reachability = await api.reachability()
+        if reachability == .unauthorized {
+            session.handle(JellyfinError.unauthorized)
+            return
+        }
+        serverReachable = reachability == .reachable
+        guard serverReachable else {
+            if downloads.localAssetURL(itemID: item.id, account: session.account) == nil {
+                error = "Jellyfin is unavailable."
+            }
+            return
+        }
         do {
             details = try await api.item(id: item.id)
             if item.type == "Series" {
@@ -136,11 +148,89 @@ struct ItemDetailView: View {
     }
 
     private func play(_ target: JellyfinItem) async {
-        guard let api = session.api else { return }
+        guard let account = session.account else { return }
+        if downloads.localAssetURL(itemID: target.id, account: account) != nil {
+            playDownloaded(target)
+            return
+        }
+        await playServer(target)
+    }
+
+    private func playServer(_ target: JellyfinItem) async {
+        guard let api = session.api else {
+            error = "Jellyfin is unavailable."
+            return
+        }
         do {
             try await player.play(item: target, api: api)
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+
+    private func playDownloaded(_ target: JellyfinItem) {
+        guard let account = session.account else { return }
+        do { try player.playDownloaded(item: target, account: account) }
+        catch { self.error = error.localizedDescription }
+    }
+
+    private func downloadAction(_ target: JellyfinItem) {
+        guard let account = session.account else { return }
+        switch downloads.state(for: target.id, account: account) {
+        case .notDownloaded, .failed:
+            guard let api = session.api, serverReachable else {
+                error = "Connect to Jellyfin to download this media."
+                return
+            }
+            Task { await downloads.download(target, api: api) }
+        case .downloading:
+            downloads.cancel(itemID: target.id, account: account)
+        case .downloaded:
+            downloads.remove(itemID: target.id, account: account)
+        }
+    }
+
+    @ViewBuilder private func downloadIcon(for target: JellyfinItem) -> some View {
+        let state = downloads.state(for: target.id, account: session.account)
+        switch state {
+        case .notDownloaded, .failed:
+            Image(systemName: "tray.and.arrow.down")
+        case let .downloading(progress):
+            ZStack {
+                Circle().stroke(.secondary.opacity(0.3), lineWidth: 3)
+                Circle().trim(from: 0, to: progress).stroke(.tint, style: StrokeStyle(lineWidth: 3, lineCap: .round)).rotationEffect(.degrees(-90))
+                Image(systemName: "xmark")
+            }
+            .padding(11)
+        case .downloaded:
+            Image(systemName: "trash")
+        }
+    }
+
+    @ViewBuilder private func downloadButton(for target: JellyfinItem) -> some View {
+        if case .downloaded = downloads.state(for: target.id, account: session.account) {
+            Button { downloadAction(target) } label: {
+                Text("Remove Download")
+                    .frame(height: 32)
+            }
+                .buttonStyle(.bordered)
+        } else {
+            Button { downloadAction(target) } label: {
+                downloadIcon(for: target)
+                    .frame(width: 44, height: 44)
+                    .background(.thinMaterial, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(downloadLabel(for: target))
+        }
+    }
+
+    private func downloadLabel(for target: JellyfinItem) -> String {
+        switch downloads.state(for: target.id, account: session.account) {
+        case .notDownloaded: "Download"
+        case .downloading: "Cancel download"
+        case .downloaded: "Remove download"
+        case .failed: "Retry download"
         }
     }
 }

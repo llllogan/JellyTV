@@ -6,6 +6,7 @@ struct ItemRow: View {
     var body: some View {
         NavigationLink {
             ItemDetailView(item: item)
+                .id(item.id)
         } label: {
             HStack(spacing: 12) {
                 ArtworkView(item: item, width: 70, height: 100)

@@ -23,6 +23,12 @@ enum JellyfinError: LocalizedError {
     }
 }
 
+enum JellyfinReachability: Equatable {
+    case reachable
+    case unreachable
+    case unauthorized
+}
+
 struct JellyfinAPI {
     let account: Account
 
@@ -34,7 +40,7 @@ struct JellyfinAPI {
         url rawURL: String,
         username: String,
         password: String,
-        permitsLocalHTTP: Bool
+        permitsLocalHTTP _: Bool
     ) async throws -> Account {
         guard
             let url = URL(string: rawURL.trimmingCharacters(in: .whitespacesAndNewlines)),
@@ -42,10 +48,6 @@ struct JellyfinAPI {
             ["https", "http"].contains(scheme)
         else {
             throw JellyfinError.invalidServer
-        }
-
-        if scheme == "http" && (!permitsLocalHTTP || !isLocal(url.host)) {
-            throw JellyfinError.insecureServer
         }
 
         var request = URLRequest(url: url.appending(path: "Users/AuthenticateByName"))
@@ -202,6 +204,23 @@ struct JellyfinAPI {
         _ = try? await URLSession.shared.data(for: request)
     }
 
+    /// A small authenticated request used to choose online or offline UI. Authentication
+    /// failures are intentionally not treated as an offline server.
+    func reachability() async -> JellyfinReachability {
+        var request = request(path: "Users/\(account.userID)")
+        request.timeoutInterval = 8
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return .unreachable }
+            if http.statusCode == 401 { return .unauthorized }
+            return 200 ..< 300 ~= http.statusCode ? .reachable : .unreachable
+        } catch {
+            return .unreachable
+        }
+    }
+
+    func isReachable() async -> Bool { await reachability() == .reachable }
+
     private func get<T: Decodable>(
         _ path: String,
         query: [URLQueryItem],
@@ -252,12 +271,4 @@ struct JellyfinAPI {
         return value
     }
 
-    private static func isLocal(_ host: String?) -> Bool {
-        guard let host else { return false }
-        return host == "localhost"
-            || host.hasPrefix("127.")
-            || host.hasPrefix("192.168.")
-            || host.hasPrefix("10.")
-            || host.hasPrefix("172.16.")
-    }
 }

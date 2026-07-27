@@ -28,7 +28,7 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
     let userData: UserData?
     let imageTags: [String: String]?
 
-    var imageURL: URL? {
+    @MainActor var imageURL: URL? {
         guard let account = JellyfinSession.sharedAccount
         else {
             return nil
