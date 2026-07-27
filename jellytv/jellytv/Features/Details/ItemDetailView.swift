@@ -97,8 +97,8 @@ struct ItemDetailView: View {
             }
             .foregroundStyle(.secondary)
         case "Season":
-            let count = downloads.downloadedEpisodeCount(seasonID: target.id, account: session.account)
-            Text("\(count) \(count == 1 ? "episode" : "episodes") downloaded")
+            let count = target.childCount ?? children.count
+            Text("\(count) \(count == 1 ? "episode" : "episodes")")
                 .foregroundStyle(.secondary)
         case "Series":
             Text(target.seasonCountText ?? "\(target.childCount ?? 0) seasons")

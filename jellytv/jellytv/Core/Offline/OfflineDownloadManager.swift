@@ -92,12 +92,15 @@ final class OfflineDownloadManager: NSObject, ObservableObject {
         return record.item.size ?? record.item.mediaSources?.first?.size
     }
 
-    func downloadedEpisodeCount(seasonID: String, account: Account?) -> Int {
+    func downloadedEpisodeCount(in season: JellyfinItem, account: Account?) -> Int {
         guard let account else { return 0 }
         return records.count {
-            $0.serverID == account.serverID && $0.userID == account.userID &&
-                ($0.item.seasonID == seasonID || $0.item.parentID == seasonID) &&
-                $0.state == .downloaded
+            guard $0.serverID == account.serverID, $0.userID == account.userID,
+                  $0.item.type == "Episode", $0.state == .downloaded else { return false }
+
+            if $0.item.seasonID == season.id || $0.item.parentID == season.id { return true }
+            return $0.item.seriesID == season.parentID &&
+                $0.item.parentIndexNumber == season.indexNumber
         }
     }
 
