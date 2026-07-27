@@ -13,7 +13,7 @@ struct BrowseView: View {
             case .movies: "Movies"
             case .tv: "TV"
             case .all: "All"
-            case .downloaded: "Downloaded"
+            case .downloaded: "On my device"
             }
         }
     }
@@ -48,7 +48,7 @@ struct BrowseView: View {
         NavigationStack {
             List {
                 if !filteredDownloaded.isEmpty {
-                    Section("Downloaded") {
+                    Section("On my device") {
                         DownloadedMediaCarousel(items: filteredDownloaded)
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
@@ -106,7 +106,7 @@ struct BrowseView: View {
                 }
 
                 if !serverReachable && filteredDownloaded.isEmpty {
-                    ContentUnavailableView("No downloaded media", systemImage: "tray", description: Text("Downloaded movies and episodes will appear here when Jellyfin is unavailable."))
+                    ContentUnavailableView("No media on my device", systemImage: "tray", description: Text("Movies and episodes saved to your device will appear here when Jellyfin is unavailable."))
                 } else if serverReachable && resume.isEmpty && nextUp.isEmpty && error == nil && filteredDownloaded.isEmpty {
                     ContentUnavailableView(
                         "Nothing to continue",
@@ -123,9 +123,10 @@ struct BrowseView: View {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu {
                         Picker("Content", selection: $mediaFilter) {
-                            ForEach(MediaFilter.allCases) { filter in
-                                Text(filter.title).tag(filter)
-                            }
+                            Text(MediaFilter.all.title).tag(MediaFilter.all)
+                            Text(MediaFilter.downloaded.title).tag(MediaFilter.downloaded)
+                            Text(MediaFilter.movies.title).tag(MediaFilter.movies)
+                            Text(MediaFilter.tv.title).tag(MediaFilter.tv)
                         }
                     } label: {
                         Image(systemName: "line.3.horizontal.decrease")
