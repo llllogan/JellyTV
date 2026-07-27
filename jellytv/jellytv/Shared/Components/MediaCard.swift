@@ -3,6 +3,17 @@ import SwiftUI
 struct MediaCard: View {
     let item: JellyfinItem
     let detailStyle: MediaCarousel.DetailStyle
+    let cardWidth: CGFloat?
+
+    init(item: JellyfinItem, detailStyle: MediaCarousel.DetailStyle, cardWidth: CGFloat? = nil) {
+        self.item = item
+        self.detailStyle = detailStyle
+        self.cardWidth = cardWidth
+    }
+
+    private var resolvedCardWidth: CGFloat { cardWidth ?? 148 }
+    private var artworkWidth: CGFloat { resolvedCardWidth - 16 }
+    private var artworkHeight: CGFloat { artworkWidth * 1.5 }
 
     private var detailText: String {
         switch detailStyle {
@@ -19,7 +30,7 @@ struct MediaCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ArtworkView(item: item, width: 132, height: 198)
+            ArtworkView(item: item, width: artworkWidth, height: artworkHeight)
             HStack(spacing: 8) {
                 Text(detailText)
                     .font(.caption)
@@ -42,7 +53,7 @@ struct MediaCard: View {
             }
         }
         .padding(8)
-        .frame(width: 148)
+        .frame(width: resolvedCardWidth)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
     }
 }

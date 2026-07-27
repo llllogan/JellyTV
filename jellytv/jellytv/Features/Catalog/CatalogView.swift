@@ -22,6 +22,31 @@ struct CatalogView: View {
         var id: String { genre }
     }
 
+    private struct DownloadGrid: View {
+        let items: [JellyfinItem]
+        let detailStyle: MediaCarousel.DetailStyle
+        let onSelect: (JellyfinItem) -> Void
+
+        private let columns = [GridItem(.adaptive(minimum: 145, maximum: 200), spacing: 12)]
+
+        var body: some View {
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(items) { item in
+                    GeometryReader { proxy in
+                        Button {
+                            onSelect(item)
+                        } label: {
+                            MediaCard(item: item, detailStyle: detailStyle, cardWidth: proxy.size.width)
+                        }
+                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
+                    }
+                    .aspectRatio(148 / 237, contentMode: .fit)
+                }
+            }
+        }
+    }
+
     @ObservedObject var session: JellyfinSession
     @ObservedObject var seerrSession: SeerrSession
     @EnvironmentObject private var downloads: OfflineDownloadManager
@@ -33,6 +58,7 @@ struct CatalogView: View {
     @State private var showProfile = false
     @State private var showPendingRequests = false
     @State private var filter: CatalogFilter = .all
+    @State private var selectedDownloadedItem: JellyfinItem?
 
     private var downloadedItems: [JellyfinItem] {
         downloads.downloadedItems(for: session.account)
@@ -83,10 +109,14 @@ struct CatalogView: View {
                         )
                     } else {
                         Section("On my device") {
-                            DownloadedMediaCarousel(items: downloadedItems)
-                                .listRowInsets(EdgeInsets())
-                                .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
+                            DownloadGrid(
+                                items: downloadedItems,
+                                detailStyle: type == "Movie" ? .runtime : .remainingTime,
+                                onSelect: { selectedDownloadedItem = $0 }
+                            )
+                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
                         }
                     }
                 } else {
@@ -105,6 +135,10 @@ struct CatalogView: View {
                 }
             }
             .listStyle(.plain)
+            .navigationDestination(item: $selectedDownloadedItem) { item in
+                ItemDetailView(item: item)
+                    .id(item.id)
+            }
             .overlay {
                 if filter == .all && items.isEmpty && error == nil {
                     ProgressView()

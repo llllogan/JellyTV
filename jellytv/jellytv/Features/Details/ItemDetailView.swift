@@ -133,13 +133,13 @@ struct ItemDetailView: View {
                 Button { Task { await play(target) } } label: {
                     HStack(spacing: 8) {
                         if target.canResume, let progress = target.progressPercent {
-                            WatchProgressIndicator(progress: progress, size: 22, tint: .white)
+                            WatchProgressIndicator(progress: progress, size: 20, tint: .white)
                         } else {
                             Image(systemName: "play.fill")
                         }
                         Text(target.canResume ? "Resume" : "Play")
                     }
-                    .padding(.horizontal, 14)
+                    .padding(.horizontal, 8)
                     .frame(height: 32)
                 }
                 .buttonStyle(.borderedProminent)
