@@ -14,12 +14,12 @@ final class PlayerCoordinator: NSObject, ObservableObject {
     private var sessionID: String?
     private var offlineAccount: Account?
 
-    func play(item: JellyfinItem, api: JellyfinAPI) async throws {
+    func play(item: JellyfinItem, api: JellyfinAPI, audioStreamIndex: Int? = nil) async throws {
         stop()
         try configureAudioSession()
 
         let resumeTicks = item.userData?.playbackPositionTicks ?? 0
-        let info = try await api.playbackInfo(itemID: item.id, positionTicks: resumeTicks)
+        let info = try await api.playbackInfo(itemID: item.id, positionTicks: resumeTicks, audioStreamIndex: audioStreamIndex)
         guard let source = info.mediaSources.first else {
             throw JellyfinError.requestFailed("No playable media source was returned.")
         }
@@ -29,7 +29,7 @@ final class PlayerCoordinator: NSObject, ObservableObject {
         sessionID = info.playSessionID
 
         let asset = AVURLAsset(
-            url: api.playbackURL(itemID: item.id, source: source),
+            url: api.playbackURL(itemID: item.id, source: source, audioStreamIndex: audioStreamIndex),
             options: [
                 "AVURLAssetHTTPHeaderFieldsKey": [
                     "Authorization": "MediaBrowser Token=\"\(api.account.token)\"",

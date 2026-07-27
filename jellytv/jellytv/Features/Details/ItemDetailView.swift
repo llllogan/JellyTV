@@ -11,6 +11,7 @@ struct ItemDetailView: View {
     @State private var error: String?
     @State private var serverReachable = false
     @State private var scrollPosition: String?
+    @State private var selectedAudioStreamIndex: Int?
 
     var body: some View {
         List {
@@ -145,8 +146,31 @@ struct ItemDetailView: View {
                 .controlSize(.regular)
 
                 downloadButton(for: target)
+                audioTrackButton(for: target)
             }
         }
+    }
+
+    @ViewBuilder private func audioTrackButton(for target: JellyfinItem) -> some View {
+        let tracks = audioTracks(for: target)
+        if tracks.count > 1 {
+            Menu {
+                Picker("Audio Track", selection: $selectedAudioStreamIndex) {
+                    ForEach(tracks) { track in
+                        Text(track.audioTrackName).tag(Optional(track.index))
+                    }
+                }
+            } label: {
+                Image(systemName: "quote.bubble")
+                    .frame(width: 44, height: 44)
+                    .background(.thinMaterial, in: Circle())
+            }
+            .accessibilityLabel("Choose audio track")
+        }
+    }
+
+    private func audioTracks(for target: JellyfinItem) -> [MediaStream] {
+        target.mediaSources?.first?.mediaStreams?.filter { $0.type == "Audio" } ?? []
     }
 
     private func load() async {
@@ -154,6 +178,7 @@ struct ItemDetailView: View {
         children = []
         hierarchyParent = nil
         error = nil
+        selectedAudioStreamIndex = nil
         guard let api = session.api else { return }
         let reachability = await api.reachability()
         if reachability == .unauthorized {
@@ -200,7 +225,7 @@ struct ItemDetailView: View {
             return
         }
         do {
-            try await player.play(item: target, api: api)
+            try await player.play(item: target, api: api, audioStreamIndex: selectedAudioStreamIndex)
         } catch {
             self.error = error.localizedDescription
         }
@@ -212,7 +237,7 @@ struct ItemDetailView: View {
         catch { self.error = error.localizedDescription }
     }
 
-    private func downloadAction(_ target: JellyfinItem) {
+    private func downloadAction(_ target: JellyfinItem, audioStreamIndex: Int? = nil) {
         guard let account = session.account else { return }
         switch downloads.state(for: target.id, account: account) {
         case .notDownloaded, .failed:
@@ -220,7 +245,7 @@ struct ItemDetailView: View {
                 error = "Connect to Jellyfin to download this media."
                 return
             }
-            Task { await downloads.download(target, api: api) }
+            Task { await downloads.download(target, api: api, audioStreamIndex: audioStreamIndex) }
         case .downloading:
             downloads.cancel(itemID: target.id, account: account)
         case .downloaded:
@@ -247,12 +272,28 @@ struct ItemDetailView: View {
     }
 
     @ViewBuilder private func downloadButton(for target: JellyfinItem) -> some View {
-        if case .downloaded = downloads.state(for: target.id, account: session.account) {
+        let state = downloads.state(for: target.id, account: session.account)
+        if case .downloaded = state {
             Button { downloadAction(target) } label: {
                 Text("Remove Download")
                     .frame(height: 32)
             }
-                .buttonStyle(.bordered)
+            .buttonStyle(.bordered)
+        } else if shouldChooseAudioTrackBeforeDownloading(state: state, target: target) {
+            Menu {
+                Text("Audio Track")
+                    .disabled(true)
+                ForEach(audioTracks(for: target)) { track in
+                    Button(track.audioTrackName) {
+                        downloadAction(target, audioStreamIndex: track.index)
+                    }
+                }
+            } label: {
+                downloadIcon(for: target)
+                    .frame(width: 44, height: 44)
+                    .background(.thinMaterial, in: Circle())
+            }
+            .accessibilityLabel(downloadLabel(for: target))
         } else {
             Button { downloadAction(target) } label: {
                 downloadIcon(for: target)
@@ -261,6 +302,18 @@ struct ItemDetailView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(downloadLabel(for: target))
+        }
+    }
+
+    private func shouldChooseAudioTrackBeforeDownloading(
+        state: OfflineDownloadState,
+        target: JellyfinItem
+    ) -> Bool {
+        switch state {
+        case .notDownloaded, .failed:
+            audioTracks(for: target).count > 1
+        case .downloading, .downloaded:
+            false
         }
     }
 

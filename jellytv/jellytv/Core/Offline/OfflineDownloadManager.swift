@@ -104,13 +104,17 @@ final class OfflineDownloadManager: NSObject, ObservableObject {
         }
     }
 
-    func download(_ item: JellyfinItem, api: JellyfinAPI) async {
+    func download(_ item: JellyfinItem, api: JellyfinAPI, audioStreamIndex: Int? = nil) async {
         guard item.type == "Movie" || item.type == "Episode" else { return }
         removeExisting(itemID: item.id, account: api.account, keepFiles: false)
         do {
-            let info = try await api.playbackInfo(itemID: item.id, positionTicks: item.userData?.playbackPositionTicks ?? 0)
+            let info = try await api.playbackInfo(
+                itemID: item.id,
+                positionTicks: item.userData?.playbackPositionTicks ?? 0,
+                audioStreamIndex: audioStreamIndex
+            )
             guard let source = info.mediaSources.first else { throw JellyfinError.requestFailed("No playable media source was returned.") }
-            let asset = AVURLAsset(url: api.playbackURL(itemID: item.id, source: source), options: [
+            let asset = AVURLAsset(url: api.playbackURL(itemID: item.id, source: source, audioStreamIndex: audioStreamIndex), options: [
                 "AVURLAssetHTTPHeaderFieldsKey": ["Authorization": "MediaBrowser Token=\"\(api.account.token)\""]
             ])
             let task = downloadSession.makeAssetDownloadTask(asset: asset, assetTitle: item.name, assetArtworkData: nil, options: nil)

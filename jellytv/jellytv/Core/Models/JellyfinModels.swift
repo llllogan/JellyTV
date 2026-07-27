@@ -180,11 +180,35 @@ struct MediaSource: Codable, Hashable {
     let transcodingURL: String?
     let supportsDirectPlay: Bool?
     let size: Int64?
+    let mediaStreams: [MediaStream]?
 
     enum CodingKeys: String, CodingKey {
         case id = "Id"
         case transcodingURL = "TranscodingUrl"
         case supportsDirectPlay = "SupportsDirectPlay"
         case size = "Size"
+        case mediaStreams = "MediaStreams"
+    }
+}
+
+struct MediaStream: Codable, Hashable, Identifiable {
+    let index: Int
+    let type: String?
+    let language: String?
+    let displayTitle: String?
+    let title: String?
+
+    var id: Int { index }
+
+    var audioTrackName: String {
+        displayTitle ?? title ?? language ?? "Audio \(index + 1)"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case index = "Index"
+        case type = "Type"
+        case language = "Language"
+        case displayTitle = "DisplayTitle"
+        case title = "Title"
     }
 }

@@ -136,8 +136,24 @@ struct JellyfinAPI {
         ).items
     }
 
-    func playbackInfo(itemID: String, positionTicks: Int64 = 0) async throws -> PlaybackInfo {
+    func playbackInfo(itemID: String, positionTicks: Int64 = 0, audioStreamIndex: Int? = nil) async throws -> PlaybackInfo {
         var request = request(path: "Items/\(itemID)/PlaybackInfo", method: "POST")
+        var queryItems = [
+            URLQueryItem(name: "UserId", value: account.userID),
+            URLQueryItem(name: "StartTimeTicks", value: String(positionTicks)),
+            URLQueryItem(name: "IsPlayback", value: "true"),
+            URLQueryItem(name: "EnableTranscoding", value: "true"),
+        ]
+        if let audioStreamIndex {
+            queryItems += [
+                URLQueryItem(name: "AudioStreamIndex", value: String(audioStreamIndex)),
+                URLQueryItem(name: "EnableDirectPlay", value: "false"),
+                URLQueryItem(name: "EnableDirectStream", value: "false"),
+                URLQueryItem(name: "AllowVideoStreamCopy", value: "false"),
+                URLQueryItem(name: "AllowAudioStreamCopy", value: "false"),
+            ]
+        }
+        request.url?.append(queryItems: queryItems)
         let deviceProfile: [String: Any] = [
             "MaxStreamingBitrate": 20_000_000,
             "MaxStaticBitrate": 20_000_000,
@@ -155,27 +171,39 @@ struct JellyfinAPI {
                 ],
             ],
         ]
-        let profile: [String: Any] = [
+        var profile: [String: Any] = [
             "DeviceProfile": deviceProfile,
             "UserId": account.userID,
             "StartTimeTicks": positionTicks,
         ]
+        if let audioStreamIndex {
+            profile["AudioStreamIndex"] = audioStreamIndex
+            // A direct stream can retain all source audio tracks, causing AVPlayer to
+            // choose the file's default track. Force Jellyfin to create an HLS stream
+            // mapped to the user's selected audio track instead.
+            profile["EnableDirectPlay"] = false
+            profile["EnableDirectStream"] = false
+            profile["AllowVideoStreamCopy"] = false
+            profile["AllowAudioStreamCopy"] = false
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: profile)
 
         return try await Self.decode(request)
     }
 
-    func playbackURL(itemID: String, source: MediaSource) -> URL {
+    func playbackURL(itemID: String, source: MediaSource, audioStreamIndex: Int? = nil) -> URL {
         if let path = source.transcodingURL {
-            return URL(string: path, relativeTo: account.baseURL)!.appending(
-                queryItems: [URLQueryItem(name: "api_key", value: account.token)]
-            )
+            var url = URL(string: path, relativeTo: account.baseURL)!
+            url = replacingQueryItem(named: "api_key", with: account.token, in: url)
+            if let audioStreamIndex {
+                url = replacingQueryItem(named: "AudioStreamIndex", with: String(audioStreamIndex), in: url)
+            }
+            return url
         }
 
         // The static stream endpoint can hand AVPlayer an unsupported audio codec
         // (such as DTS or EAC3). HLS lets Jellyfin transcode audio to AAC.
-        return account.baseURL.appending(path: "Videos/\(itemID)/master.m3u8").appending(
-            queryItems: [
+        var queryItems = [
                 URLQueryItem(name: "MediaSourceId", value: source.id),
                 URLQueryItem(name: "Static", value: "false"),
                 URLQueryItem(name: "VideoCodec", value: "h264"),
@@ -184,8 +212,24 @@ struct JellyfinAPI {
                 URLQueryItem(name: "SegmentContainer", value: "ts"),
                 URLQueryItem(name: "MinSegments", value: "2"),
                 URLQueryItem(name: "api_key", value: account.token),
-            ]
-        )
+        ]
+        if let audioStreamIndex {
+            queryItems.append(URLQueryItem(name: "AudioStreamIndex", value: String(audioStreamIndex)))
+            queryItems.append(URLQueryItem(name: "EnableDirectPlay", value: "false"))
+            queryItems.append(URLQueryItem(name: "EnableDirectStream", value: "false"))
+            queryItems.append(URLQueryItem(name: "AllowVideoStreamCopy", value: "false"))
+            queryItems.append(URLQueryItem(name: "AllowAudioStreamCopy", value: "false"))
+        }
+        return account.baseURL.appending(path: "Videos/\(itemID)/master.m3u8").appending(queryItems: queryItems)
+    }
+
+    private func replacingQueryItem(named name: String, with value: String, in url: URL) -> URL {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return url }
+        var queryItems = components.queryItems ?? []
+        queryItems.removeAll { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+        queryItems.append(URLQueryItem(name: name, value: value))
+        components.queryItems = queryItems
+        return components.url ?? url
     }
 
     func report(
