@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var session = JellyfinSession()
+    @StateObject private var seerrSession = SeerrSession()
 
     var body: some View {
         Group {
@@ -10,11 +11,15 @@ struct ContentView: View {
             } else if session.account == nil {
                 LoginView(session: session)
             } else {
-                MainTabView(session: session)
+                MainTabView(session: session, seerrSession: seerrSession)
             }
         }
         .environmentObject(session)
-        .task { await session.restore() }
+        .environmentObject(seerrSession)
+        .task {
+            await session.restore()
+            await seerrSession.restore()
+        }
     }
 }
 

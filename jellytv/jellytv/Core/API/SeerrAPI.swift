@@ -1,0 +1,138 @@
+import Foundation
+
+enum SeerrError: LocalizedError {
+    case invalidServer
+    case insecureServer
+    case unauthorized
+    case requestFailed(String)
+    case invalidResponse
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidServer: "Enter a valid Seerr URL."
+        case .insecureServer: "Remote Seerr servers must use HTTPS."
+        case .unauthorized: "Seerr sign-in expired. Connect Seerr again."
+        case let .requestFailed(message): message
+        case .invalidResponse: "Seerr returned an unexpected response."
+        }
+    }
+}
+
+struct SeerrAPI {
+    let account: SeerrAccount
+
+    static func jellyfinSignIn(url rawURL: String, username: String, password: String, permitsLocalHTTP: Bool) async throws -> SeerrAccount {
+        let baseURL = try validatedURL(rawURL, permitsLocalHTTP: permitsLocalHTTP)
+        var request = URLRequest(url: baseURL.appending(path: "api/v1/auth/jellyfin"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["username": username, "password": password])
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw SeerrError.invalidResponse }
+        guard 200 ..< 300 ~= http.statusCode else { throw failure(http) }
+        guard let rawCookie = http.value(forHTTPHeaderField: "Set-Cookie"),
+              let cookie = rawCookie.split(separator: ";").first,
+              cookie.contains("=")
+        else { throw SeerrError.invalidResponse }
+        return SeerrAccount(baseURL: baseURL, sessionCookie: String(cookie), apiKey: nil)
+    }
+
+    static func apiKeyAccount(url rawURL: String, apiKey: String, permitsLocalHTTP: Bool) throws -> SeerrAccount {
+        let baseURL = try validatedURL(rawURL, permitsLocalHTTP: permitsLocalHTTP)
+        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw SeerrError.unauthorized
+        }
+        return SeerrAccount(baseURL: baseURL, sessionCookie: nil, apiKey: apiKey.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    func currentUser() async throws -> SeerrUser { try await get("api/v1/auth/me") }
+    func pendingRequests() async throws -> [SeerrRequest] {
+        let page: SeerrPage<SeerrRequest> = try await get("api/v1/request?take=20&sort=updatedAt")
+        return page.results
+    }
+    func trendingMovies() async throws -> [SeerrMedia] { try await discovery("movies", kind: "movie") }
+    func trendingTV() async throws -> [SeerrMedia] { try await discovery("tv", kind: "tv") }
+    func popularMovies() async throws -> [SeerrMedia] { try await discovery("movies", kind: "movie", endpoint: "popular") }
+    func popularTV() async throws -> [SeerrMedia] { try await discovery("tv", kind: "tv", endpoint: "popular") }
+    func upcomingMovies() async throws -> [SeerrMedia] { try await discovery("movies", kind: "movie", endpoint: "upcoming") }
+    func upcomingTV() async throws -> [SeerrMedia] { try await discovery("tv", kind: "tv", endpoint: "upcoming") }
+
+    func search(query: String) async throws -> [SeerrMedia] {
+        var components = URLComponents(url: account.baseURL.appending(path: "api/v1/search"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "query", value: query)]
+        let request = self.request(url: components.url!)
+        let page: SeerrPage<SeerrMedia> = try await decode(request)
+        return page.results
+    }
+
+    func movie(id: Int) async throws -> SeerrMovieDetails { try await get("api/v1/movie/\(id)") }
+    func tv(id: Int) async throws -> SeerrTVDetails { try await get("api/v1/tv/\(id)") }
+
+    func requestMovie(id: Int) async throws -> SeerrRequest {
+        try await createRequest(["mediaType": "movie", "mediaId": id])
+    }
+
+    func requestTV(id: Int, seasons: [Int]) async throws -> SeerrRequest {
+        try await createRequest(["mediaType": "tv", "mediaId": id, "seasons": seasons])
+    }
+
+    private func discovery(_ category: String, kind: String, endpoint: String = "trending") async throws -> [SeerrMedia] {
+        let path = "api/v1/discover/\(category)/\(endpoint)"
+        let page: SeerrPage<SeerrMedia> = try await get(path)
+        return page.results.map { media in
+            var media = media
+            media.mediaType = media.mediaType ?? kind
+            return media
+        }
+    }
+
+    private func createRequest(_ body: [String: Any]) async throws -> SeerrRequest {
+        var request = request(path: "api/v1/request", method: "POST")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        return try await decode(request)
+    }
+
+    private func get<T: Decodable>(_ path: String) async throws -> T {
+        try await decode(request(path: path))
+    }
+
+    private func request(path: String, method: String = "GET") -> URLRequest {
+        request(url: account.baseURL.appending(path: path), method: method)
+    }
+
+    private func request(url: URL, method: String = "GET") -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let apiKey = account.apiKey { request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key") }
+        if let cookie = account.sessionCookie { request.setValue(cookie, forHTTPHeaderField: "Cookie") }
+        return request
+    }
+
+    private func decode<T: Decodable>(_ request: URLRequest) async throws -> T {
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw SeerrError.invalidResponse }
+        guard 200 ..< 300 ~= http.statusCode else { throw Self.failure(http, data: data) }
+        do { return try JSONDecoder().decode(T.self, from: data) }
+        catch { throw SeerrError.invalidResponse }
+    }
+
+    private static func failure(_ response: HTTPURLResponse, data: Data = Data()) -> SeerrError {
+        if response.statusCode == 401 || response.statusCode == 403 { return .unauthorized }
+        let message = String(data: data, encoding: .utf8) ?? ""
+        return .requestFailed("Seerr request failed (\(response.statusCode)): \(message)")
+    }
+
+    private static func validatedURL(_ rawURL: String, permitsLocalHTTP: Bool) throws -> URL {
+        guard let url = URL(string: rawURL.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let scheme = url.scheme?.lowercased(), ["https", "http"].contains(scheme), url.host != nil
+        else { throw SeerrError.invalidServer }
+        if scheme == "http" && (!permitsLocalHTTP || !isLocal(url.host)) { throw SeerrError.insecureServer }
+        return url
+    }
+
+    private static func isLocal(_ host: String?) -> Bool {
+        guard let host else { return false }
+        return host == "localhost" || host == "::1" || host.hasPrefix("127.") || host.hasPrefix("192.168.") || host.hasPrefix("10.") || host.hasPrefix("172.16.")
+    }
+}
