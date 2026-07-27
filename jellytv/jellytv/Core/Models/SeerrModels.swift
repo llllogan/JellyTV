@@ -1,6 +1,6 @@
 import Foundation
 
-struct SeerrAccount: Codable, Equatable {
+struct SeerrAccount: Codable, Equatable, Sendable {
     let baseURL: URL
     let sessionCookie: String?
     let apiKey: String?
@@ -20,7 +20,12 @@ struct SeerrPage<T: Decodable>: Decodable {
     let results: [T]
 }
 
-struct SeerrMedia: Codable, Identifiable, Hashable {
+struct SeerrGenre: Codable, Identifiable, Hashable, Sendable {
+    let id: Int
+    let name: String
+}
+
+struct SeerrMedia: Codable, Identifiable, Hashable, Sendable {
     let id: Int
     let tmdbId: Int?
     let title: String?
@@ -51,13 +56,13 @@ struct SeerrMedia: Codable, Identifiable, Hashable {
     }
 }
 
-struct SeerrMediaInfo: Codable, Hashable {
+struct SeerrMediaInfo: Codable, Hashable, Sendable {
     let id: Int?
     let status: Int?
     let requests: [SeerrRequest]?
 }
 
-struct SeerrRequest: Codable, Identifiable, Hashable {
+struct SeerrRequest: Codable, Identifiable, Hashable, Sendable {
     let id: Int
     let status: Int?
     let media: SeerrMedia?
@@ -75,7 +80,7 @@ struct SeerrRequest: Codable, Identifiable, Hashable {
     }
 }
 
-struct SeerrSeason: Codable, Identifiable, Hashable {
+struct SeerrSeason: Codable, Identifiable, Hashable, Sendable {
     let id: Int?
     let seasonNumber: Int
     let name: String?

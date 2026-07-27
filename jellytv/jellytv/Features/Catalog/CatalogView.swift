@@ -59,6 +59,7 @@ struct CatalogView: View {
             }
             .navigationTitle(title)
             .task { await load() }
+            .refreshable { await load() }
         }
     }
 

@@ -7,8 +7,13 @@ struct BrowseView: View {
     @State private var nextUp: [JellyfinItem] = []
     @State private var pending: [SeerrRequest] = []
     @State private var discovery: [String: [SeerrMedia]] = [:]
+    @State private var movieGenres: [SeerrGenre] = []
+    @State private var tvGenres: [SeerrGenre] = []
+    @State private var movieGenreItems: [Int: [SeerrMedia]] = [:]
+    @State private var tvGenreItems: [Int: [SeerrMedia]] = [:]
     @State private var error: String?
     @State private var showSeerrConnection = false
+    @State private var hasLoaded = false
 
     private let discoverySections = [
         ("Trending Movies", "trendingMovies"),
@@ -66,6 +71,24 @@ struct BrowseView: View {
                     }
                 }
 
+                ForEach(movieGenres) { genre in
+                    SeerrGenreBrowseSection(
+                        genre: genre,
+                        mediaType: .movie,
+                        session: seerrSession,
+                        items: movieGenreItems[genre.id] ?? []
+                    )
+                }
+
+                ForEach(tvGenres) { genre in
+                    SeerrGenreBrowseSection(
+                        genre: genre,
+                        mediaType: .tv,
+                        session: seerrSession,
+                        items: tvGenreItems[genre.id] ?? []
+                    )
+                }
+
                 if resume.isEmpty && nextUp.isEmpty && error == nil {
                     ContentUnavailableView(
                         "Nothing to continue",
@@ -91,11 +114,14 @@ struct BrowseView: View {
             }
             .navigationTitle("Browse")
             .task { await load() }
+            .refreshable { await load(force: true) }
             .sheet(isPresented: $showSeerrConnection) { SeerrConnectionView(session: seerrSession) }
         }
     }
 
-    private func load() async {
+    private func load(force: Bool = false) async {
+        guard force || !hasLoaded else { return }
+        hasLoaded = true
         guard let api = session.api else { return }
         error = nil
 
@@ -128,6 +154,8 @@ struct BrowseView: View {
         async let popularTV = api.popularTV()
         async let upcomingMovies = api.upcomingMovies()
         async let upcomingTV = api.upcomingTV()
+        async let movieGenreRequest = api.movieGenres()
+        async let tvGenreRequest = api.tvGenres()
 
         if let value = try? await pendingRequest { pending = value.filter { $0.status != 5 } }
         if let value = try? await trendingMovies { discovery["trendingMovies"] = value }
@@ -136,5 +164,32 @@ struct BrowseView: View {
         if let value = try? await popularTV { discovery["popularTV"] = value }
         if let value = try? await upcomingMovies { discovery["upcomingMovies"] = value }
         if let value = try? await upcomingTV { discovery["upcomingTV"] = value }
+        movieGenres = (try? await movieGenreRequest) ?? []
+        tvGenres = (try? await tvGenreRequest) ?? []
+
+        await loadGenreRows(api: api)
+    }
+
+    private func loadGenreRows(api: SeerrAPI) async {
+        movieGenreItems = [:]
+        tvGenreItems = [:]
+
+        await withTaskGroup(of: (Bool, Int, [SeerrMedia]).self) { group in
+            for genre in movieGenres {
+                group.addTask {
+                    (true, genre.id, (try? await api.movies(genre: genre)) ?? [])
+                }
+            }
+            for genre in tvGenres {
+                group.addTask {
+                    (false, genre.id, (try? await api.tv(genre: genre)) ?? [])
+                }
+            }
+
+            for await (isMovie, genreID, items) in group where !items.isEmpty {
+                if isMovie { movieGenreItems[genreID] = items }
+                else { tvGenreItems[genreID] = items }
+            }
+        }
     }
 }

@@ -18,7 +18,7 @@ enum SeerrError: LocalizedError {
     }
 }
 
-struct SeerrAPI {
+struct SeerrAPI: Sendable {
     let account: SeerrAccount
 
     static func jellyfinSignIn(url rawURL: String, username: String, password: String, permitsLocalHTTP: Bool) async throws -> SeerrAccount {
@@ -47,15 +47,38 @@ struct SeerrAPI {
 
     func currentUser() async throws -> SeerrUser { try await get("api/v1/auth/me") }
     func pendingRequests() async throws -> [SeerrRequest] {
-        let page: SeerrPage<SeerrRequest> = try await get("api/v1/request?take=20&sort=updatedAt")
+        let page: SeerrPage<SeerrRequest> = try await get(
+            "api/v1/request",
+            query: [
+                URLQueryItem(name: "take", value: "20"),
+                URLQueryItem(name: "sort", value: "modified"),
+                URLQueryItem(name: "sortDirection", value: "desc"),
+            ]
+        )
         return page.results
     }
-    func trendingMovies() async throws -> [SeerrMedia] { try await discovery("movies", kind: "movie") }
-    func trendingTV() async throws -> [SeerrMedia] { try await discovery("tv", kind: "tv") }
-    func popularMovies() async throws -> [SeerrMedia] { try await discovery("movies", kind: "movie", endpoint: "popular") }
-    func popularTV() async throws -> [SeerrMedia] { try await discovery("tv", kind: "tv", endpoint: "popular") }
-    func upcomingMovies() async throws -> [SeerrMedia] { try await discovery("movies", kind: "movie", endpoint: "upcoming") }
-    func upcomingTV() async throws -> [SeerrMedia] { try await discovery("tv", kind: "tv", endpoint: "upcoming") }
+    func trendingMovies() async throws -> [SeerrMedia] {
+        try await discovery("api/v1/discover/trending", kind: "movie", query: [URLQueryItem(name: "mediaType", value: "movie")])
+    }
+    func trendingTV() async throws -> [SeerrMedia] {
+        try await discovery("api/v1/discover/trending", kind: "tv", query: [URLQueryItem(name: "mediaType", value: "tv")])
+    }
+    func popularMovies() async throws -> [SeerrMedia] {
+        try await discovery("api/v1/discover/movies", kind: "movie", query: [URLQueryItem(name: "sortBy", value: "popularity.desc")])
+    }
+    func popularTV() async throws -> [SeerrMedia] {
+        try await discovery("api/v1/discover/tv", kind: "tv", query: [URLQueryItem(name: "sortBy", value: "popularity.desc")])
+    }
+    func upcomingMovies() async throws -> [SeerrMedia] { try await discovery("api/v1/discover/movies/upcoming", kind: "movie") }
+    func upcomingTV() async throws -> [SeerrMedia] { try await discovery("api/v1/discover/tv/upcoming", kind: "tv") }
+    func movieGenres() async throws -> [SeerrGenre] { try await get("api/v1/discover/genreslider/movie") }
+    func tvGenres() async throws -> [SeerrGenre] { try await get("api/v1/discover/genreslider/tv") }
+    func movies(genre: SeerrGenre) async throws -> [SeerrMedia] {
+        try await discovery("api/v1/discover/movies/genre/\(genre.id)", kind: "movie")
+    }
+    func tv(genre: SeerrGenre) async throws -> [SeerrMedia] {
+        try await discovery("api/v1/discover/tv/genre/\(genre.id)", kind: "tv")
+    }
 
     func search(query: String) async throws -> [SeerrMedia] {
         var components = URLComponents(url: account.baseURL.appending(path: "api/v1/search"), resolvingAgainstBaseURL: false)!
@@ -76,9 +99,8 @@ struct SeerrAPI {
         try await createRequest(["mediaType": "tv", "mediaId": id, "seasons": seasons])
     }
 
-    private func discovery(_ category: String, kind: String, endpoint: String = "trending") async throws -> [SeerrMedia] {
-        let path = "api/v1/discover/\(category)/\(endpoint)"
-        let page: SeerrPage<SeerrMedia> = try await get(path)
+    private func discovery(_ path: String, kind: String, query: [URLQueryItem] = []) async throws -> [SeerrMedia] {
+        let page: SeerrPage<SeerrMedia> = try await get(path, query: query)
         return page.results.map { media in
             var media = media
             media.mediaType = media.mediaType ?? kind
@@ -92,8 +114,10 @@ struct SeerrAPI {
         return try await decode(request)
     }
 
-    private func get<T: Decodable>(_ path: String) async throws -> T {
-        try await decode(request(path: path))
+    private func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
+        var request = request(path: path)
+        request.url?.append(queryItems: query)
+        return try await decode(request)
     }
 
     private func request(path: String, method: String = "GET") -> URLRequest {
