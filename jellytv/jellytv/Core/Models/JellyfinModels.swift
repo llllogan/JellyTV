@@ -17,6 +17,7 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
     let indexNumber: Int?
     let genres: [String]?
     let runTimeTicks: Int64?
+    let size: Int64?
     let childCount: Int?
     let seriesID: String?
     let seriesPrimaryImageTag: String?
@@ -27,6 +28,7 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
     let seriesName: String?
     let userData: UserData?
     let imageTags: [String: String]?
+    let mediaSources: [MediaSource]?
 
     @MainActor var imageURL: URL? {
         guard let account = JellyfinSession.sharedAccount
@@ -110,6 +112,7 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
         case indexNumber = "IndexNumber"
         case genres = "Genres"
         case runTimeTicks = "RunTimeTicks"
+        case size = "Size"
         case childCount = "ChildCount"
         case seriesID = "SeriesId"
         case seriesPrimaryImageTag = "SeriesPrimaryImageTag"
@@ -120,6 +123,7 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
         case seriesName = "SeriesName"
         case userData = "UserData"
         case imageTags = "ImageTags"
+        case mediaSources = "MediaSources"
     }
 }
 
@@ -171,14 +175,16 @@ struct PlaybackInfo: Codable {
     }
 }
 
-struct MediaSource: Codable {
+struct MediaSource: Codable, Hashable {
     let id: String
     let transcodingURL: String?
     let supportsDirectPlay: Bool?
+    let size: Int64?
 
     enum CodingKeys: String, CodingKey {
         case id = "Id"
         case transcodingURL = "TranscodingUrl"
         case supportsDirectPlay = "SupportsDirectPlay"
+        case size = "Size"
     }
 }

@@ -18,13 +18,20 @@ struct ItemDetailView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     ArtworkView(item: item, width: 180, height: 270)
                         .frame(maxWidth: .infinity)
+                    
                     VStack(alignment: .leading, spacing: 2) {
                         Text((details ?? item).name).font(.title.bold())
-                        if let episodeMetadata {
-                            Text(episodeMetadata).foregroundStyle(.secondary)
-                        }
+                        detailSubtitle(for: details ?? item)
                     }
+                    
                     actionRow
+                    
+                    let target = details ?? item
+                    if case let .downloading(progress) = downloads.state(for: target.id, account: session.account) {
+                        Text("Downloading \(Int(progress * 100))% (\(ByteCountFormatter.string(fromByteCount: downloads.downloadedBytes(itemID: target.id, account: session.account), countStyle: .file)))")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                     if case let .failed(message) = downloads.state(for: (details ?? item).id, account: session.account) {
                         Text(message).font(.footnote).foregroundStyle(.red)
                     }
@@ -42,8 +49,10 @@ struct ItemDetailView: View {
                     ForEach(children) { child in
                         ItemRow(item: child)
                             .id(child.id)
+                            .padding(.vertical)
                     }
                 }
+                .listRowInsets(EdgeInsets())
             }
 
             if let hierarchyParent {
@@ -78,13 +87,42 @@ struct ItemDetailView: View {
         .buttonStyle(.plain)
     }
 
-    private var episodeMetadata: String? {
-        let target = details ?? item
-        guard target.type == "Episode",
-              let episode = target.indexNumber,
-              let season = target.parentIndexNumber
-        else { return nil }
-        return "e\(episode) s\(season)"
+    @ViewBuilder private func detailSubtitle(for target: JellyfinItem) -> some View {
+        switch target.type {
+        case "Episode":
+            HStack {
+                Text(episodeText(for: target))
+                Spacer(minLength: 8)
+                Text(mediaSizeText(for: target))
+            }
+            .foregroundStyle(.secondary)
+        case "Season":
+            let count = downloads.downloadedEpisodeCount(seasonID: target.id, account: session.account)
+            Text("\(count) \(count == 1 ? "episode" : "episodes") downloaded")
+                .foregroundStyle(.secondary)
+        case "Series":
+            Text(target.seasonCountText ?? "\(target.childCount ?? 0) seasons")
+                .foregroundStyle(.secondary)
+        case "Movie":
+            Text(mediaSizeText(for: target))
+                .foregroundStyle(.secondary)
+        default:
+            Text(target.detailLine)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func episodeText(for target: JellyfinItem) -> String {
+        guard let season = target.parentIndexNumber, let episode = target.indexNumber else { return target.detailLine }
+        return "Season \(season) · Episode \(episode)"
+    }
+
+    private func mediaSizeText(for target: JellyfinItem) -> String {
+        let size = downloads.contentSizeBytes(itemID: target.id, account: session.account)
+            ?? target.size
+            ?? target.mediaSources?.first?.size
+        guard let size else { return "Size unavailable" }
+        return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
     }
 
     @ViewBuilder private var actionRow: some View {
@@ -200,6 +238,7 @@ struct ItemDetailView: View {
                 Circle().stroke(.secondary.opacity(0.3), lineWidth: 3)
                 Circle().trim(from: 0, to: progress).stroke(.tint, style: StrokeStyle(lineWidth: 3, lineCap: .round)).rotationEffect(.degrees(-90))
                 Image(systemName: "xmark")
+                    .font(Font.system(size: 8, weight: .bold))
             }
             .padding(11)
         case .downloaded:

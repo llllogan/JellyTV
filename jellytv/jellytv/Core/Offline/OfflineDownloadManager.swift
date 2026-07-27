@@ -18,6 +18,8 @@ struct OfflineMedia: Codable, Identifiable {
     var artworkPath: String?
     var taskIdentifier: Int?
     var playbackPositionTicks: Int64
+    var downloadedBytes: Int64? = nil
+    var contentSizeBytes: Int64? = nil
 
     var id: String { "\(serverID)|\(userID)|\(item.id)" }
 }
@@ -76,6 +78,29 @@ final class OfflineDownloadManager: NSObject, ObservableObject {
         record(for: itemID, account: account)?.playbackPositionTicks ?? 0
     }
 
+    func downloadedBytes(itemID: String, account: Account?) -> Int64 {
+        record(for: itemID, account: account)?.downloadedBytes ?? 0
+    }
+
+    func contentSizeBytes(itemID: String, account: Account?) -> Int64? {
+        guard let record = record(for: itemID, account: account) else { return nil }
+        if let size = record.contentSizeBytes { return size }
+        if let url = localAssetURL(for: record) {
+            let size = directorySize(at: url)
+            if size > 0 { return size }
+        }
+        return record.item.size ?? record.item.mediaSources?.first?.size
+    }
+
+    func downloadedEpisodeCount(seasonID: String, account: Account?) -> Int {
+        guard let account else { return 0 }
+        return records.count {
+            $0.serverID == account.serverID && $0.userID == account.userID &&
+                ($0.item.seasonID == seasonID || $0.item.parentID == seasonID) &&
+                $0.state == .downloaded
+        }
+    }
+
     func download(_ item: JellyfinItem, api: JellyfinAPI) async {
         guard item.type == "Movie" || item.type == "Episode" else { return }
         removeExisting(itemID: item.id, account: api.account, keepFiles: false)
@@ -87,7 +112,7 @@ final class OfflineDownloadManager: NSObject, ObservableObject {
             ])
             let task = downloadSession.makeAssetDownloadTask(asset: asset, assetTitle: item.name, assetArtworkData: nil, options: nil)
             guard let task else { throw JellyfinError.requestFailed("This media cannot be downloaded by iOS.") }
-            var record = OfflineMedia(item: item, serverID: api.account.serverID, userID: api.account.userID, state: .downloading(0), assetPath: nil, artworkPath: nil, taskIdentifier: task.taskIdentifier, playbackPositionTicks: item.userData?.playbackPositionTicks ?? 0)
+            var record = OfflineMedia(item: item, serverID: api.account.serverID, userID: api.account.userID, state: .downloading(0), assetPath: nil, artworkPath: nil, taskIdentifier: task.taskIdentifier, playbackPositionTicks: item.userData?.playbackPositionTicks ?? 0, downloadedBytes: task.countOfBytesReceived, contentSizeBytes: nil)
             task.taskDescription = record.id
             records.append(record)
             persist()
@@ -212,6 +237,7 @@ final class OfflineDownloadManager: NSObject, ObservableObject {
                 for task in tasks {
                     guard let id = task.taskDescription, var record = self.records.first(where: { $0.id == id }) else { continue }
                     record.taskIdentifier = task.taskIdentifier
+                    record.downloadedBytes = task.countOfBytesReceived
                     if task.state == .running { record.state = .downloading(task.progress.fractionCompleted) }
                     self.replace(record)
                 }
@@ -226,6 +252,7 @@ extension OfflineDownloadManager: AVAssetDownloadDelegate {
         Task { @MainActor in
             guard let id = assetDownloadTask.taskDescription, var record = self.records.first(where: { $0.id == id }) else { return }
             record.state = .downloading(min(max(progress, 0), 1))
+            record.downloadedBytes = assetDownloadTask.countOfBytesReceived
             self.replace(record)
         }
     }
@@ -240,6 +267,8 @@ extension OfflineDownloadManager: AVAssetDownloadDelegate {
                 try FileManager.default.moveItem(at: location, to: destination)
                 record.assetPath = filename
                 record.taskIdentifier = nil
+                record.contentSizeBytes = self.directorySize(at: destination)
+                record.downloadedBytes = record.contentSizeBytes
                 record.state = .downloaded
             } catch { record.state = .failed("Unable to save the downloaded media.") }
             self.replace(record)
@@ -261,5 +290,17 @@ extension OfflineDownloadManager: AVAssetDownloadDelegate {
             self.backgroundCompletion = nil
             completion?()
         }
+    }
+}
+
+private extension OfflineDownloadManager {
+    func directorySize(at url: URL) -> Int64 {
+        let keys: Set<URLResourceKey> = [.fileSizeKey]
+        let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: Array(keys))
+        return enumerator?.reduce(Int64(0)) { total, entry in
+            guard let file = entry as? URL,
+                  let values = try? file.resourceValues(forKeys: keys) else { return total }
+            return total + Int64(values.fileSize ?? 0)
+        } ?? 0
     }
 }

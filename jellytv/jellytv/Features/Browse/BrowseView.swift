@@ -49,7 +49,7 @@ struct BrowseView: View {
             List {
                 if !filteredDownloaded.isEmpty {
                     Section("Downloaded") {
-                        MediaCarousel(items: filteredDownloaded)
+                        DownloadedMediaCarousel(items: filteredDownloaded)
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
