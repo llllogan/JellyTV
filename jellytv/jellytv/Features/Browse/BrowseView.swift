@@ -3,6 +3,7 @@ import SwiftUI
 struct BrowseView: View {
     @ObservedObject var session: JellyfinSession
     @State private var resume: [JellyfinItem] = []
+    @State private var nextUp: [JellyfinItem] = []
     @State private var error: String?
 
     var body: some View {
@@ -15,7 +16,18 @@ struct BrowseView: View {
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                     }
-                } else if error == nil {
+                }
+
+                if !nextUp.isEmpty {
+                    Section("Next Up") {
+                        MediaCarousel(items: nextUp, detailStyle: .nextUp)
+                            .listRowInsets(EdgeInsets())
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                    }
+                }
+
+                if resume.isEmpty && nextUp.isEmpty && error == nil {
                     ContentUnavailableView(
                         "Nothing to continue",
                         systemImage: "play.circle",
@@ -39,9 +51,20 @@ struct BrowseView: View {
 
     private func load() async {
         guard let api = session.api else { return }
+        error = nil
+
+        async let resumeRequest = api.resumeItems()
+        async let nextUpRequest = api.nextUpEpisodes()
+
         do {
-            resume = try await api.resumeItems()
-            error = nil
+            resume = try await resumeRequest
+        } catch {
+            session.handle(error)
+            self.error = error.localizedDescription
+        }
+
+        do {
+            nextUp = try await nextUpRequest
         } catch {
             session.handle(error)
             self.error = error.localizedDescription

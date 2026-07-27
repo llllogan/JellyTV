@@ -7,9 +7,13 @@ struct MediaCard: View {
     private var detailText: String {
         switch detailStyle {
         case .runtime:
-            item.runtimeText ?? "Runtime unavailable"
+            item.seasonCountText ?? item.runtimeText ?? "Runtime unavailable"
         case .remainingTime:
-            item.remainingTimeText ?? "Remaining time unavailable"
+            item.type == "Episode"
+                ? item.detailLine
+                : item.remainingTimeText ?? "Remaining time unavailable"
+        case .nextUp:
+            "\(item.detailLine)"
         }
     }
 
@@ -23,7 +27,16 @@ struct MediaCard: View {
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                if case .remainingTime = detailStyle, let progress = item.progressPercent {
+                if case .nextUp = detailStyle {
+                    Text(item.runtimeText ?? "Runtime unavailable")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                if case .remainingTime = detailStyle,
+                   let progress = item.progressPercent
+                {
                     WatchProgressIndicator(progress: progress)
                 }
             }

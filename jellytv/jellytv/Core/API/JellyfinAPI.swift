@@ -74,7 +74,7 @@ struct JellyfinAPI {
             URLQueryItem(name: "Recursive", value: "true"),
             URLQueryItem(name: "SortBy", value: "SortName"),
             URLQueryItem(name: "SortOrder", value: "Ascending"),
-            URLQueryItem(name: "Fields", value: "Overview,PrimaryImageAspectRatio,UserData,Genres,RunTimeTicks"),
+            URLQueryItem(name: "Fields", value: "Overview,PrimaryImageAspectRatio,UserData,Genres,RunTimeTicks,ChildCount"),
             URLQueryItem(name: "StartIndex", value: "0"),
             URLQueryItem(name: "Limit", value: "100"),
         ]
@@ -94,6 +94,18 @@ struct JellyfinAPI {
         try await get(
             "Users/\(account.userID)/Items/Resume",
             query: [
+                URLQueryItem(name: "Fields", value: "Overview,UserData,RunTimeTicks"),
+                URLQueryItem(name: "Limit", value: "20"),
+            ],
+            as: ItemsResponse.self
+        ).items
+    }
+
+    func nextUpEpisodes() async throws -> [JellyfinItem] {
+        try await get(
+            "Shows/NextUp",
+            query: [
+                URLQueryItem(name: "UserId", value: account.userID),
                 URLQueryItem(name: "Fields", value: "Overview,UserData,RunTimeTicks"),
                 URLQueryItem(name: "Limit", value: "20"),
             ],

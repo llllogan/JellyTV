@@ -4,6 +4,7 @@ struct MediaCarousel: View {
     enum DetailStyle {
         case runtime
         case remainingTime
+        case nextUp
     }
 
     let items: [JellyfinItem]

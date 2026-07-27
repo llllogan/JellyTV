@@ -17,6 +17,7 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
     let indexNumber: Int?
     let genres: [String]?
     let runTimeTicks: Int64?
+    let childCount: Int?
     let userData: UserData?
     let imageTags: [String: String]?
 
@@ -61,6 +62,11 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
         return "\(Self.durationText(for: max(0, runTimeTicks - playbackPosition))) remaining"
     }
 
+    var seasonCountText: String? {
+        guard type == "Series", let childCount else { return nil }
+        return childCount == 1 ? "1 season" : "\(childCount) seasons"
+    }
+
     private static func durationText(for ticks: Int64) -> String {
         let totalMinutes = Int(ticks / 600_000_000)
         let hours = totalMinutes / 60
@@ -82,6 +88,7 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
         case indexNumber = "IndexNumber"
         case genres = "Genres"
         case runTimeTicks = "RunTimeTicks"
+        case childCount = "ChildCount"
         case userData = "UserData"
         case imageTags = "ImageTags"
     }
