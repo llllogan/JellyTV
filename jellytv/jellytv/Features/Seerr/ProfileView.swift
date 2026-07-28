@@ -75,21 +75,13 @@ struct ServersView: View {
                             .disabled(isRefreshingLibraries)
                         if isRefreshingLibraries {
                             if let libraryRefreshProgress {
-                                ProgressView(value: libraryRefreshProgress) {
-                                    Text(libraryRefreshMessage ?? "Refreshing library…")
-                                } currentValueLabel: {
-                                    Text("\(Int(libraryRefreshProgress * 100))%")
-                                }
+                                ProgressView(value: libraryRefreshProgress)
                             } else {
-                                ProgressView(libraryRefreshMessage ?? "Starting library refresh…")
+                                ProgressView()
                             }
                         }
-                        if let libraryRefreshMessage {
-                            if isRefreshingLibraries || libraryRefreshMessage.hasPrefix("Library refresh completed") || libraryRefreshMessage.hasPrefix("Library refresh started") {
-                                Text(libraryRefreshMessage).foregroundStyle(.secondary)
-                            } else {
-                                Text(libraryRefreshMessage).foregroundStyle(.red)
-                            }
+                        if let libraryRefreshMessage, !isRefreshingLibraries {
+                            Text(libraryRefreshMessage).foregroundStyle(.red)
                         }
                     }
                 }
@@ -165,16 +157,16 @@ struct ServersView: View {
                         libraryRefreshMessage = "Refreshing library…"
                     } else if refreshWasRunning {
                         libraryRefreshProgress = 1
-                        libraryRefreshMessage = "Library refresh completed."
+                        libraryRefreshMessage = nil
                         isRefreshingLibraries = false
                         return
                     } else if attempt >= 10 {
-                        libraryRefreshMessage = "Library refresh started. Progress is unavailable."
+                        libraryRefreshMessage = nil
                         isRefreshingLibraries = false
                         return
                     }
                 } else if attempt >= 10 {
-                    libraryRefreshMessage = "Library refresh started. Progress is unavailable."
+                    libraryRefreshMessage = nil
                     isRefreshingLibraries = false
                     return
                 }
@@ -187,7 +179,7 @@ struct ServersView: View {
             }
         }
 
-        libraryRefreshMessage = "Library refresh is still running."
+        libraryRefreshMessage = nil
         isRefreshingLibraries = false
     }
 }
