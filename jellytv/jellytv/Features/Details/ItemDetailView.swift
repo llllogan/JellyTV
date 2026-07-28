@@ -72,9 +72,18 @@ struct ItemDetailView: View {
 
             let target = details ?? item
             if !metadataItems(for: target).isEmpty {
-                Section("Metadata") {
+                Section {
                     ForEach(metadataItems(for: target)) { metadata in
-                        LabeledContent(content: metadata.value, label: Label(metadata.title, systemImage: "person"))
+                        HStack {
+                            Image(systemName: metadata.systemImage)
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(metadata.primaryColor, metadata.secondaryColor)
+                                .frame(width: 20)
+                            Text(metadata.title)
+                            Spacer()
+                            Text(metadata.value)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .listRowBackground(Color(uiColor: .secondarySystemBackground))
@@ -116,16 +125,16 @@ struct ItemDetailView: View {
         var metadata: [MetadataItem] = []
 
         if let criticRating = target.criticRating {
-            metadata.append(.init(title: "Critic score", value: "\(criticRating)%"))
+            metadata.append(.init(title: "Critic score", value: "\(criticRating)%", systemImage: "chair.lounge.fill", primaryColor: .red, secondaryColor: .orange))
         }
         if let communityRating = target.communityRating {
-            metadata.append(.init(title: "Community rating", value: String(format: "%.1f / 10", communityRating)))
+            metadata.append(.init(title: "Community rating", value: String(format: "%.1f / 10", communityRating), systemImage: "popcorn.fill", primaryColor: .yellow, secondaryColor: .red))
         }
         if let officialRating = target.officialRating, !officialRating.isEmpty {
-            metadata.append(.init(title: "Classification", value: officialRating))
+            metadata.append(.init(title: "Classification", value: officialRating, systemImage: "checkmark.seal.fill", primaryColor: .white, secondaryColor: .green))
         }
         if let studio = target.studios?.first?.name, !studio.isEmpty {
-            metadata.append(.init(title: "Studio", value: studio))
+            metadata.append(.init(title: "Studio", value: studio, systemImage: "building.2.fill", primaryColor: .blue, secondaryColor: .indigo))
         }
         return metadata
     }
@@ -397,6 +406,9 @@ struct ItemDetailView: View {
 private struct MetadataItem: Identifiable {
     let title: String
     let value: String
+    let systemImage: String
+    let primaryColor: Color
+    let secondaryColor: Color
 
     var id: String { title }
 }
