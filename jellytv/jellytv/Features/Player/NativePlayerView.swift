@@ -7,9 +7,6 @@ struct NativePlayerView: View {
     var body: some View {
         PlayerControllerRepresentable(controller: coordinator.controller)
             .ignoresSafeArea()
-            .onDisappear {
-                coordinator.stop()
-            }
     }
 }
 
