@@ -20,6 +20,20 @@ final class JellyfinSession: ObservableObject {
     func restore() async {
         defer { isRestoring = false }
         account = KeychainStore.load()
+        guard let account,
+              account.userName == nil || account.isAdministrator == nil,
+              let user = try? await JellyfinAPI(account: account).currentUser()
+        else { return }
+        let updatedAccount = Account(
+            token: account.token,
+            userID: account.userID,
+            serverID: account.serverID,
+            baseURL: account.baseURL,
+            userName: user.name ?? account.userName,
+            isAdministrator: user.policy?.isAdministrator ?? account.isAdministrator
+        )
+        KeychainStore.save(updatedAccount)
+        self.account = updatedAccount
     }
 
     func login(url: String, username: String, password: String, permitsLocalHTTP: Bool) async {

@@ -29,7 +29,7 @@ struct BrowseView: View {
     @State private var movieGenreItems: [Int: [SeerrMedia]] = [:]
     @State private var tvGenreItems: [Int: [SeerrMedia]] = [:]
     @State private var error: String?
-    @State private var showProfile = false
+    @State private var showServers = false
     @State private var showPendingRequests = false
     @State private var hasLoaded = false
     @State private var mediaFilter: MediaFilter = .all
@@ -158,8 +158,8 @@ struct BrowseView: View {
                             showPendingRequests = true
                         }
                     }
-                    Button { showProfile = true } label: {
-                        Image(systemName: "externaldrive.connected.to.line.below")
+                    Button { showServers = true } label: {
+                        Image(systemName: "gearshape")
                     }
                 }
             }
@@ -167,8 +167,8 @@ struct BrowseView: View {
             .toolbarTitleDisplayMode(.inlineLarge)
             .task { await load() }
             .refreshable { await load(force: true) }
-            .sheet(isPresented: $showProfile) {
-                ProfileView(jellyfinSession: session, seerrSession: seerrSession)
+            .sheet(isPresented: $showServers) {
+                ServersView(jellyfinSession: session, seerrSession: seerrSession)
             }
             .sheet(isPresented: $showPendingRequests) { PendingRequestsView(session: seerrSession) }
             .onChange(of: seerrSession.account) { _, _ in

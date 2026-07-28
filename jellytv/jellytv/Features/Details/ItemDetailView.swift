@@ -5,13 +5,19 @@ struct ItemDetailView: View {
     @EnvironmentObject private var player: PlayerCoordinator
     @EnvironmentObject private var session: JellyfinSession
     @EnvironmentObject private var downloads: OfflineDownloadManager
+    @EnvironmentObject private var itemDetailCache: ItemDetailCache
     @State private var details: JellyfinItem?
     @State private var children: [JellyfinItem] = []
     @State private var hierarchyParent: JellyfinItem?
     @State private var error: String?
     @State private var serverReachable = false
-    @State private var scrollPosition: String?
+    @SceneStorage("item-detail-scroll-position") private var savedScrollPosition = ""
     @State private var selectedAudioStreamIndex: Int?
+
+    init(item: JellyfinItem) {
+        self.item = item
+        _savedScrollPosition = SceneStorage(wrappedValue: "", "item-detail-scroll-position-\(item.id)")
+    }
 
     var body: some View {
         List {
@@ -65,13 +71,20 @@ struct ItemDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .scrollPosition(id: $scrollPosition)
+        .scrollPosition(id: scrollPosition)
         .listSectionSpacing(.compact)
         .scrollContentBackground(.hidden)
         .background(Color(uiColor: .systemBackground))
         .navigationTitle(item.type == "Series" ? "Show" : "Details")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: item.id) { await load() }
+    }
+
+    private var scrollPosition: Binding<String?> {
+        Binding(
+            get: { savedScrollPosition.isEmpty ? nil : savedScrollPosition },
+            set: { savedScrollPosition = $0 ?? "" }
+        )
     }
 
     private func hierarchyRow(_ parent: JellyfinItem) -> some View {
@@ -175,6 +188,15 @@ struct ItemDetailView: View {
     }
 
     private func load() async {
+        if let cached = itemDetailCache.entry(for: item.id, account: session.account) {
+            details = cached.details
+            children = cached.children
+            hierarchyParent = cached.hierarchyParent
+            serverReachable = cached.serverReachable
+            error = nil
+            return
+        }
+
         details = nil
         children = []
         hierarchyParent = nil
@@ -205,6 +227,16 @@ struct ItemDetailView: View {
             if (current.type == "Episode" || current.type == "Season"), let parentID {
                 hierarchyParent = try await api.item(id: parentID)
             }
+            itemDetailCache.store(
+                .init(
+                    details: details ?? item,
+                    children: children,
+                    hierarchyParent: hierarchyParent,
+                    serverReachable: serverReachable
+                ),
+                for: item.id,
+                account: session.account
+            )
         } catch {
             session.handle(error)
             self.error = error.localizedDescription

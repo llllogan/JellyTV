@@ -8,7 +8,6 @@ struct SeerrConnectionView: View {
     @State private var password = ""
     @State private var apiKey = ""
     @State private var usesAPIKey = false
-    @State private var allowsLocalHTTP = false
 
     var body: some View {
         NavigationStack {
@@ -16,7 +15,6 @@ struct SeerrConnectionView: View {
                 Section("Seerr server") {
                     TextField("https://seerr.example.com", text: $serverURL)
                         .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                    Toggle("Allow HTTP for local development", isOn: $allowsLocalHTTP)
                 }
                 Section("Sign in") {
                     Picker("Method", selection: $usesAPIKey) {
@@ -41,18 +39,25 @@ struct SeerrConnectionView: View {
             }
             .navigationTitle("Connect Seerr")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { Button(role: .close) { dismiss() } }
+                ToolbarItem(placement: .topBarLeading) { Button(role: .close) { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(session.isWorking ? "Connecting…" : "Connect") {
+                    Button(role: .confirm) {
                         Task {
                             let connected = if usesAPIKey {
-                                await session.connectWithAPIKey(url: serverURL, apiKey: apiKey, permitsLocalHTTP: allowsLocalHTTP)
+                                await session.connectWithAPIKey(url: serverURL, apiKey: apiKey, permitsLocalHTTP: true)
                             } else {
-                                await session.connectWithJellyfin(url: serverURL, username: username, password: password, permitsLocalHTTP: allowsLocalHTTP)
+                                await session.connectWithJellyfin(url: serverURL, username: username, password: password, permitsLocalHTTP: true)
                             }
                             if connected { dismiss() }
                         }
+                    } label: {
+                        if session.isWorking {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "checkmark")
+                        }
                     }
+                    .accessibilityLabel(session.isWorking ? "Connecting" : "Connect")
                     .disabled(session.isWorking || serverURL.isEmpty || (usesAPIKey ? apiKey.isEmpty : username.isEmpty))
                 }
             }

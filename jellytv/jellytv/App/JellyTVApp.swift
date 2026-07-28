@@ -12,6 +12,7 @@ import UIKit
 struct jellytvApp: App {
     @StateObject private var player = PlayerCoordinator()
     @StateObject private var downloads = OfflineDownloadManager.shared
+    @StateObject private var itemDetailCache = ItemDetailCache()
     @UIApplicationDelegateAdaptor(OfflineDownloadAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
 
@@ -20,6 +21,7 @@ struct jellytvApp: App {
             ContentView()
                 .environmentObject(player)
                 .environmentObject(downloads)
+                .environmentObject(itemDetailCache)
                 .fullScreenCover(isPresented: $player.isPresenting) {
                     NativePlayerView(coordinator: player)
                 }

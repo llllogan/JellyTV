@@ -30,7 +30,7 @@ struct CatalogView: View {
 
     @State private var items: [JellyfinItem] = []
     @State private var error: String?
-    @State private var showProfile = false
+    @State private var showServers = false
     @State private var showPendingRequests = false
     @State private var filter: CatalogFilter = .all
     @State private var selectedDownloadedItem: JellyfinItem?
@@ -138,13 +138,13 @@ struct CatalogView: View {
                             showPendingRequests = true
                         }
                     }
-                    Button { showProfile = true } label: {
-                        Image(systemName: "externaldrive.connected.to.line.below")
+                    Button { showServers = true } label: {
+                        Image(systemName: "gearshape")
                     }
                 }
             }
-            .sheet(isPresented: $showProfile) {
-                ProfileView(jellyfinSession: session, seerrSession: seerrSession)
+            .sheet(isPresented: $showServers) {
+                ServersView(jellyfinSession: session, seerrSession: seerrSession)
             }
             .sheet(isPresented: $showPendingRequests) { PendingRequestsView(session: seerrSession) }
             .onChange(of: filter) { _, filter in

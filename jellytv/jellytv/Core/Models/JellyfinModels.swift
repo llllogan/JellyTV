@@ -5,6 +5,17 @@ struct Account: Codable {
     let userID: String
     let serverID: String
     let baseURL: URL
+    let userName: String?
+    let isAdministrator: Bool?
+
+    init(token: String, userID: String, serverID: String, baseURL: URL, userName: String? = nil, isAdministrator: Bool? = nil) {
+        self.token = token
+        self.userID = userID
+        self.serverID = serverID
+        self.baseURL = baseURL
+        self.userName = userName
+        self.isAdministrator = isAdministrator
+    }
 }
 
 struct JellyfinItem: Codable, Identifiable, Hashable {
@@ -145,6 +156,26 @@ struct ItemsResponse: Codable {
     }
 }
 
+struct ScheduledTaskInfo: Codable, Identifiable {
+    let id: String
+    let name: String
+    let key: String?
+    let state: String?
+    let currentProgressPercentage: Double?
+
+    var isRunning: Bool {
+        state?.caseInsensitiveCompare("Running") == .orderedSame
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id = "Id"
+        case name = "Name"
+        case key = "Key"
+        case state = "State"
+        case currentProgressPercentage = "CurrentProgressPercentage"
+    }
+}
+
 struct AuthenticationResponse: Codable {
     let user: AuthUser
     let accessToken: String
@@ -159,9 +190,31 @@ struct AuthenticationResponse: Codable {
 
 struct AuthUser: Codable {
     let id: String
+    let name: String?
+    let policy: JellyfinUserPolicy?
 
     enum CodingKeys: String, CodingKey {
         case id = "Id"
+        case name = "Name"
+        case policy = "Policy"
+    }
+}
+
+struct JellyfinUser: Codable {
+    let name: String?
+    let policy: JellyfinUserPolicy?
+
+    enum CodingKeys: String, CodingKey {
+        case name = "Name"
+        case policy = "Policy"
+    }
+}
+
+struct JellyfinUserPolicy: Codable {
+    let isAdministrator: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case isAdministrator = "IsAdministrator"
     }
 }
 

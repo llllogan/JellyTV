@@ -66,7 +66,9 @@ struct JellyfinAPI {
             token: response.accessToken,
             userID: response.user.id,
             serverID: response.serverID ?? "",
-            baseURL: url
+            baseURL: url,
+            userName: response.user.name,
+            isAdministrator: response.user.policy?.isAdministrator
         )
     }
 
@@ -90,6 +92,29 @@ struct JellyfinAPI {
             query: query,
             as: ItemsResponse.self
         ).items
+    }
+
+    func currentUser() async throws -> JellyfinUser {
+        try await get("Users/\(account.userID)", query: [], as: JellyfinUser.self)
+    }
+
+    func refreshLibraries() async throws {
+        let (_, response) = try await URLSession.shared.data(for: request(path: "Library/Refresh", method: "POST"))
+        guard let http = response as? HTTPURLResponse else { throw JellyfinError.invalidResponse }
+        guard 200 ..< 300 ~= http.statusCode else {
+            throw http.statusCode == 401 ? JellyfinError.unauthorized : JellyfinError.requestFailed("Library refresh failed (\(http.statusCode)).")
+        }
+    }
+
+    func libraryRefreshTask() async throws -> ScheduledTaskInfo? {
+        let tasks: [ScheduledTaskInfo] = try await get("ScheduledTasks", query: [], as: [ScheduledTaskInfo].self)
+        return tasks.first { task in
+            let key = task.key?.lowercased() ?? ""
+            let name = task.name.lowercased()
+            return key.contains("refreshmedialibrary")
+                || name.contains("scan media library")
+                || name.contains("refresh media library")
+        }
     }
 
     func resumeItems() async throws -> [JellyfinItem] {
