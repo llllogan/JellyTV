@@ -23,10 +23,15 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
     let name: String
     let type: String
     let productionYear: Int?
+    let premiereDate: String?
     let overview: String?
+    let communityRating: Double?
+    let criticRating: Int?
+    let officialRating: String?
     let parentIndexNumber: Int?
     let indexNumber: Int?
     let genres: [String]?
+    let studios: [Studio]?
     let runTimeTicks: Int64?
     let size: Int64?
     let childCount: Int?
@@ -118,10 +123,15 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
         case name = "Name"
         case type = "Type"
         case productionYear = "ProductionYear"
+        case premiereDate = "PremiereDate"
         case overview = "Overview"
+        case communityRating = "CommunityRating"
+        case criticRating = "CriticRating"
+        case officialRating = "OfficialRating"
         case parentIndexNumber = "ParentIndexNumber"
         case indexNumber = "IndexNumber"
         case genres = "Genres"
+        case studios = "Studios"
         case runTimeTicks = "RunTimeTicks"
         case size = "Size"
         case childCount = "ChildCount"
@@ -135,6 +145,14 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
         case userData = "UserData"
         case imageTags = "ImageTags"
         case mediaSources = "MediaSources"
+    }
+}
+
+struct Studio: Codable, Hashable {
+    let name: String
+
+    enum CodingKeys: String, CodingKey {
+        case name = "Name"
     }
 }
 

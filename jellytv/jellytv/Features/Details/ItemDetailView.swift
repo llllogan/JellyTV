@@ -69,6 +69,16 @@ struct ItemDetailView: View {
                 }
                 .listRowBackground(Color(uiColor: .secondarySystemBackground))
             }
+
+            let target = details ?? item
+            if !metadataItems(for: target).isEmpty {
+                Section("Metadata") {
+                    ForEach(metadataItems(for: target)) { metadata in
+                        LabeledContent(metadata.title, value: metadata.value)
+                    }
+                }
+                .listRowBackground(Color(uiColor: .secondarySystemBackground))
+            }
         }
         .listStyle(.insetGrouped)
         .scrollPosition(id: scrollPosition)
@@ -100,6 +110,24 @@ struct ItemDetailView: View {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    private func metadataItems(for target: JellyfinItem) -> [MetadataItem] {
+        var metadata: [MetadataItem] = []
+
+        if let criticRating = target.criticRating {
+            metadata.append(.init(title: "Critic score", value: "\(criticRating)%"))
+        }
+        if let communityRating = target.communityRating {
+            metadata.append(.init(title: "Community rating", value: String(format: "%.1f / 10", communityRating)))
+        }
+        if let officialRating = target.officialRating, !officialRating.isEmpty {
+            metadata.append(.init(title: "Classification", value: officialRating))
+        }
+        if let studio = target.studios?.first?.name, !studio.isEmpty {
+            metadata.append(.init(title: "Studio", value: studio))
+        }
+        return metadata
     }
 
     @ViewBuilder private func detailSubtitle(for target: JellyfinItem) -> some View {
@@ -358,4 +386,11 @@ struct ItemDetailView: View {
         case .failed: "Retry download"
         }
     }
+}
+
+private struct MetadataItem: Identifiable {
+    let title: String
+    let value: String
+
+    var id: String { title }
 }

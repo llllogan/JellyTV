@@ -143,7 +143,7 @@ struct JellyfinAPI {
     func item(id: String) async throws -> JellyfinItem {
         try await get(
             "Users/\(account.userID)/Items/\(id)",
-            query: [URLQueryItem(name: "Fields", value: "Overview,UserData,MediaSources,RunTimeTicks,Size,ChildCount,SeriesId,SeriesPrimaryImageTag,CanDelete,ParentId,SeasonId,SeasonName,SeriesName")],
+            query: [URLQueryItem(name: "Fields", value: "Overview,UserData,MediaSources,RunTimeTicks,Size,ChildCount,SeriesId,SeriesPrimaryImageTag,CanDelete,ParentId,SeasonId,SeasonName,SeriesName,CommunityRating,CriticRating,OfficialRating,PremiereDate,Studios")],
             as: JellyfinItem.self
         )
     }
