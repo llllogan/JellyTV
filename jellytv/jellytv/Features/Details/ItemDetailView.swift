@@ -74,7 +74,7 @@ struct ItemDetailView: View {
             if !metadataItems(for: target).isEmpty {
                 Section("Metadata") {
                     ForEach(metadataItems(for: target)) { metadata in
-                        LabeledContent(metadata.title, value: metadata.value)
+                        LabeledContent(content: metadata.value, label: Label(metadata.title, systemImage: "person"))
                     }
                 }
                 .listRowBackground(Color(uiColor: .secondarySystemBackground))
@@ -171,10 +171,15 @@ struct ItemDetailView: View {
     @ViewBuilder private var actionRow: some View {
         let target = details ?? item
         if target.type == "Movie" || target.type == "Episode" {
+            let isLoading = player.loadingItemID == target.id
             HStack(spacing: 10) {
                 Button { Task { await play(target) } } label: {
                     HStack(spacing: 8) {
-                        if target.canResume, let progress = target.progressPercent {
+                        if isLoading {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(.white)
+                        } else if target.canResume, let progress = target.progressPercent {
                             WatchProgressIndicator(progress: progress, size: 20, tint: .white)
                         } else {
                             Image(systemName: "play.fill")
@@ -186,6 +191,7 @@ struct ItemDetailView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.regular)
+                .disabled(isLoading)
 
                 downloadButton(for: target)
                 audioTrackButton(for: target)
@@ -274,7 +280,7 @@ struct ItemDetailView: View {
     private func play(_ target: JellyfinItem) async {
         guard let account = session.account else { return }
         if downloads.localAssetURL(itemID: target.id, account: account) != nil {
-            playDownloaded(target)
+            await playDownloaded(target)
             return
         }
         await playServer(target)
@@ -292,9 +298,9 @@ struct ItemDetailView: View {
         }
     }
 
-    private func playDownloaded(_ target: JellyfinItem) {
+    private func playDownloaded(_ target: JellyfinItem) async {
         guard let account = session.account else { return }
-        do { try player.playDownloaded(item: target, account: account) }
+        do { try await player.playDownloaded(item: target, account: account) }
         catch { self.error = error.localizedDescription }
     }
 

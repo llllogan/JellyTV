@@ -22,7 +22,9 @@ struct jellytvApp: App {
                 .environmentObject(player)
                 .environmentObject(downloads)
                 .environmentObject(itemDetailCache)
-                .fullScreenCover(isPresented: $player.isPresenting) {
+                .fullScreenCover(isPresented: $player.isPresenting, onDismiss: {
+                    player.stop()
+                }) {
                     NativePlayerView(coordinator: player)
                 }
                 .onChange(of: scenePhase) { _, phase in

@@ -8,6 +8,7 @@ import UIKit
 final class PlayerCoordinator: NSObject, ObservableObject {
     @Published var controller: AVPlayerViewController?
     @Published var isPresenting = false
+    @Published private(set) var loadingItemID: String?
 
     private var player: AVPlayer?
     private var timer: Any?
@@ -19,90 +20,115 @@ final class PlayerCoordinator: NSObject, ObservableObject {
     private var remoteCommandsConfigured = false
     private var timeControlObservation: NSKeyValueObservation?
     private var playbackEndedObserver: NSObjectProtocol?
+    private var readinessObservation: NSKeyValueObservation?
+    private var readinessContinuation: CheckedContinuation<Void, Error>?
+    private var playbackRequestID: UUID?
+    private var hasStartedPlayback = false
 
     func play(item: JellyfinItem, api: JellyfinAPI, audioStreamIndex: Int? = nil) async throws {
+        guard loadingItemID != item.id else { return }
         stop()
-        try configureAudioSession()
+        let requestID = beginLoading(itemID: item.id)
 
-        let resumeTicks = item.userData?.playbackPositionTicks ?? 0
-        let info = try await api.playbackInfo(itemID: item.id, positionTicks: resumeTicks, audioStreamIndex: audioStreamIndex)
-        guard let source = info.mediaSources.first else {
-            throw JellyfinError.requestFailed("No playable media source was returned.")
+        do {
+            try configureAudioSession()
+
+            let resumeTicks = item.userData?.playbackPositionTicks ?? 0
+            let info = try await api.playbackInfo(itemID: item.id, positionTicks: resumeTicks, audioStreamIndex: audioStreamIndex)
+            guard isCurrent(requestID) else { return }
+            guard let source = info.mediaSources.first else {
+                throw JellyfinError.requestFailed("No playable media source was returned.")
+            }
+
+            self.item = item
+            self.api = api
+            sessionID = info.playSessionID
+
+            let asset = AVURLAsset(
+                url: api.playbackURL(itemID: item.id, source: source, audioStreamIndex: audioStreamIndex),
+                options: [
+                    "AVURLAssetHTTPHeaderFieldsKey": [
+                        "Authorization": "MediaBrowser Token=\"\(api.account.token)\"",
+                    ],
+                ]
+            )
+            let playerItem = AVPlayerItem(asset: asset)
+            let player = AVPlayer(playerItem: playerItem)
+            self.player = player
+            try await waitUntilReady(playerItem)
+            guard isCurrent(requestID) else { return }
+
+            configurePlayerObservations(player)
+            present(player)
+            finishLoading(requestID)
+
+            if resumeTicks > 0 {
+                await player.seek(to: CMTime(value: resumeTicks, timescale: 10_000_000))
+            }
+            hasStartedPlayback = true
+            await api.report(
+                "Sessions/Playing",
+                itemID: item.id,
+                positionTicks: resumeTicks,
+                playSessionID: sessionID
+            )
+
+            timer = player.addPeriodicTimeObserver(
+                forInterval: CMTime(seconds: 15, preferredTimescale: 1),
+                queue: .main
+            ) { [weak self] time in
+                Task { await self?.progress(time) }
+            }
+            configureRemoteCommands()
+            publishNowPlayingInfo(for: item, player: player)
+            player.play()
+            updateNowPlayingPlaybackState()
+        } catch {
+            guard isCurrent(requestID) else { return }
+            stop()
+            throw error
         }
-
-        self.item = item
-        self.api = api
-        sessionID = info.playSessionID
-
-        let asset = AVURLAsset(
-            url: api.playbackURL(itemID: item.id, source: source, audioStreamIndex: audioStreamIndex),
-            options: [
-                "AVURLAssetHTTPHeaderFieldsKey": [
-                    "Authorization": "MediaBrowser Token=\"\(api.account.token)\"",
-                ],
-            ]
-        )
-        let player = AVPlayer(playerItem: AVPlayerItem(asset: asset))
-        self.player = player
-        configurePlayerObservations(player)
-
-        let controller = AVPlayerViewController()
-        controller.player = player
-        controller.allowsPictureInPicturePlayback = true
-        controller.canStartPictureInPictureAutomaticallyFromInline = true
-        self.controller = controller
-        isPresenting = true
-
-        if resumeTicks > 0 {
-            await player.seek(to: CMTime(value: resumeTicks, timescale: 10_000_000))
-        }
-        await api.report(
-            "Sessions/Playing",
-            itemID: item.id,
-            positionTicks: resumeTicks,
-            playSessionID: sessionID
-        )
-
-        timer = player.addPeriodicTimeObserver(
-            forInterval: CMTime(seconds: 15, preferredTimescale: 1),
-            queue: .main
-        ) { [weak self] time in
-            Task { await self?.progress(time) }
-        }
-        configureRemoteCommands()
-        publishNowPlayingInfo(for: item, player: player)
-        player.play()
-        updateNowPlayingPlaybackState()
     }
 
-    func playDownloaded(item: JellyfinItem, account: Account) throws {
+    func playDownloaded(item: JellyfinItem, account: Account) async throws {
         guard let url = OfflineDownloadManager.shared.localAssetURL(itemID: item.id, account: account) else {
             throw JellyfinError.requestFailed("The downloaded media is no longer available.")
         }
+        guard loadingItemID != item.id else { return }
         stop()
-        try configureAudioSession()
-        self.item = item
-        offlineAccount = account
-        api = nil
-        sessionID = nil
-        let player = AVPlayer(playerItem: AVPlayerItem(url: url))
-        self.player = player
-        configurePlayerObservations(player)
-        let controller = AVPlayerViewController()
-        controller.player = player
-        controller.allowsPictureInPicturePlayback = true
-        controller.canStartPictureInPictureAutomaticallyFromInline = true
-        self.controller = controller
-        isPresenting = true
-        let resumeTicks = OfflineDownloadManager.shared.playbackPosition(itemID: item.id, account: account)
-        if resumeTicks > 0 { player.seek(to: CMTime(value: resumeTicks, timescale: 10_000_000)) }
-        timer = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 15, preferredTimescale: 1), queue: .main) { [weak self] time in
-            Task { await self?.progress(time) }
+        let requestID = beginLoading(itemID: item.id)
+
+        do {
+            try configureAudioSession()
+            self.item = item
+            offlineAccount = account
+            api = nil
+            sessionID = nil
+            let playerItem = AVPlayerItem(url: url)
+            let player = AVPlayer(playerItem: playerItem)
+            self.player = player
+            try await waitUntilReady(playerItem)
+            guard isCurrent(requestID) else { return }
+
+            configurePlayerObservations(player)
+            present(player)
+            finishLoading(requestID)
+
+            let resumeTicks = OfflineDownloadManager.shared.playbackPosition(itemID: item.id, account: account)
+            if resumeTicks > 0 { await player.seek(to: CMTime(value: resumeTicks, timescale: 10_000_000)) }
+            hasStartedPlayback = true
+            timer = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 15, preferredTimescale: 1), queue: .main) { [weak self] time in
+                Task { await self?.progress(time) }
+            }
+            configureRemoteCommands()
+            publishNowPlayingInfo(for: item, player: player)
+            player.play()
+            updateNowPlayingPlaybackState()
+        } catch {
+            guard isCurrent(requestID) else { return }
+            stop()
+            throw error
         }
-        configureRemoteCommands()
-        publishNowPlayingInfo(for: item, player: player)
-        player.play()
-        updateNowPlayingPlaybackState()
     }
 
     private func configureAudioSession() throws {
@@ -112,7 +138,7 @@ final class PlayerCoordinator: NSObject, ObservableObject {
     }
 
     func stop() {
-        if let item, let api {
+        if hasStartedPlayback, let item, let api {
             Task {
                 await api.report(
                     "Sessions/Playing/Stopped",
@@ -122,7 +148,7 @@ final class PlayerCoordinator: NSObject, ObservableObject {
                 )
             }
         }
-        if let item, let offlineAccount {
+        if hasStartedPlayback, let item, let offlineAccount {
             OfflineDownloadManager.shared.queueProgressSync(
                 itemID: item.id,
                 account: offlineAccount,
@@ -134,6 +160,7 @@ final class PlayerCoordinator: NSObject, ObservableObject {
         }
 
         timer = nil
+        cancelReadinessWait()
         timeControlObservation = nil
         if let playbackEndedObserver {
             NotificationCenter.default.removeObserver(playbackEndedObserver)
@@ -143,11 +170,95 @@ final class PlayerCoordinator: NSObject, ObservableObject {
         artworkTask = nil
         player?.pause()
         player = nil
+        item = nil
+        api = nil
+        sessionID = nil
         offlineAccount = nil
         controller = nil
         isPresenting = false
+        loadingItemID = nil
+        playbackRequestID = nil
+        hasStartedPlayback = false
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    private func beginLoading(itemID: String) -> UUID {
+        let requestID = UUID()
+        playbackRequestID = requestID
+        loadingItemID = itemID
+        return requestID
+    }
+
+    private func isCurrent(_ requestID: UUID) -> Bool {
+        playbackRequestID == requestID
+    }
+
+    private func finishLoading(_ requestID: UUID) {
+        guard isCurrent(requestID) else { return }
+        loadingItemID = nil
+    }
+
+    private func present(_ player: AVPlayer) {
+        let controller = AVPlayerViewController()
+        controller.player = player
+        controller.allowsPictureInPicturePlayback = true
+        controller.canStartPictureInPictureAutomaticallyFromInline = true
+        self.controller = controller
+        isPresenting = true
+    }
+
+    private func waitUntilReady(_ playerItem: AVPlayerItem) async throws {
+        switch playerItem.status {
+        case .readyToPlay:
+            return
+        case .failed:
+            throw readinessError(for: playerItem)
+        case .unknown:
+            break
+        @unknown default:
+            break
+        }
+
+        try await withCheckedThrowingContinuation { continuation in
+            readinessContinuation = continuation
+            let observation = playerItem.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    switch item.status {
+                    case .readyToPlay:
+                        self.completeReadinessWait(with: .success(()))
+                    case .failed:
+                        self.completeReadinessWait(with: .failure(self.readinessError(for: item)))
+                    case .unknown:
+                        break
+                    @unknown default:
+                        break
+                    }
+                }
+            }
+            if readinessContinuation == nil {
+                observation.invalidate()
+            } else {
+                readinessObservation = observation
+            }
+        }
+    }
+
+    private func readinessError(for playerItem: AVPlayerItem) -> JellyfinError {
+        JellyfinError.requestFailed(playerItem.error?.localizedDescription ?? "The media could not be prepared for playback.")
+    }
+
+    private func completeReadinessWait(with result: Result<Void, Error>) {
+        readinessObservation?.invalidate()
+        readinessObservation = nil
+        let continuation = readinessContinuation
+        readinessContinuation = nil
+        continuation?.resume(with: result)
+    }
+
+    private func cancelReadinessWait() {
+        completeReadinessWait(with: .failure(CancellationError()))
     }
 
     private func progress(_ time: CMTime) async {
