@@ -10,11 +10,16 @@ final class JellyfinSession: ObservableObject {
     @Published var isWorking = false
     @Published var isRestoring = true
     @Published var error: String?
+    @Published private(set) var reachability: JellyfinReachability?
 
     static var sharedAccount: Account?
 
     var api: JellyfinAPI? {
         account.map(JellyfinAPI.init)
+    }
+
+    var isReachable: Bool {
+        reachability == .reachable
     }
 
     func restore() async {
@@ -58,7 +63,23 @@ final class JellyfinSession: ObservableObject {
     func logout() {
         KeychainStore.clear()
         account = nil
+        reachability = nil
         error = nil
+    }
+
+    @discardableResult
+    func refreshReachability() async -> JellyfinReachability? {
+        guard let api else {
+            reachability = nil
+            return nil
+        }
+
+        let result = await api.reachability()
+        reachability = result
+        if result == .unauthorized {
+            handle(JellyfinError.unauthorized)
+        }
+        return result
     }
 
     func handle(_ failure: Error) {

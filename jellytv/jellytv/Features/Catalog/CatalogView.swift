@@ -31,7 +31,7 @@ struct CatalogView: View {
 
     @State private var items: [JellyfinItem] = []
     @State private var error: String?
-    @State private var showServers = false
+    @State private var showServices = false
     @State private var showPendingRequests = false
     @State private var filter: CatalogFilter = .all
     @State private var selectedDownloadedItem: JellyfinItem?
@@ -137,8 +137,14 @@ struct CatalogView: View {
             }
             .navigationTitle(title)
             .toolbarTitleDisplayMode(.inlineLarge)
-            .task { await load() }
-            .refreshable { await load() }
+            .task {
+                await session.refreshReachability()
+                await load()
+            }
+            .refreshable {
+                await session.refreshReachability()
+                await load()
+            }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu {
@@ -150,8 +156,8 @@ struct CatalogView: View {
                         Image(systemName: "line.3.horizontal.decrease")
                     }
                     Menu {
-                        Button { showServers = true } label: {
-                            Label("Server", systemImage: "externaldrive.badge.icloud")
+                        Button { showServices = true } label: {
+                            Label("Services", systemImage: "externaldrive.badge.icloud")
                         }
                         Button { showPendingRequests = true } label: {
                             Label(
@@ -159,13 +165,14 @@ struct CatalogView: View {
                                 systemImage: seerrSession.pendingApprovalCount > 0 ? "envelope.open" : "envelope"
                             )
                         }
+                        .disabled(!session.isReachable)
                     } label: {
                         Image(systemName: "ellipsis")
                     }
                 }
             }
-            .sheet(isPresented: $showServers) {
-                ServersView(jellyfinSession: session, seerrSession: seerrSession)
+            .sheet(isPresented: $showServices) {
+                ServicesView(jellyfinSession: session, seerrSession: seerrSession)
             }
             .sheet(isPresented: $showPendingRequests) { PendingRequestsView(session: seerrSession) }
             .onChange(of: filter) { _, filter in
@@ -177,6 +184,7 @@ struct CatalogView: View {
 
     private func load() async {
         guard filter == .all else { return }
+        guard session.isReachable else { return }
         guard let api = session.api else { return }
         do {
             items = try await api.items(type: type)

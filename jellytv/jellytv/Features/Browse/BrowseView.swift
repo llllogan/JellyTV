@@ -30,7 +30,7 @@ struct BrowseView: View {
     @State private var movieGenreItems: [Int: [SeerrMedia]] = [:]
     @State private var tvGenreItems: [Int: [SeerrMedia]] = [:]
     @State private var error: String?
-    @State private var showServers = false
+    @State private var showServices = false
     @State private var showPendingRequests = false
     @State private var hasLoaded = false
     @State private var mediaFilter: MediaFilter = .all
@@ -164,8 +164,8 @@ struct BrowseView: View {
                         Image(systemName: "line.3.horizontal.decrease")
                     }
                     Menu {
-                        Button { showServers = true } label: {
-                            Label("Server", systemImage: "externaldrive.badge.icloud")
+                        Button { showServices = true } label: {
+                            Label("Services", systemImage: "externaldrive.badge.icloud")
                         }
                         Button { showPendingRequests = true } label: {
                             Label(
@@ -173,17 +173,18 @@ struct BrowseView: View {
                                 systemImage: seerrSession.pendingApprovalCount > 0 ? "envelope.open" : "envelope"
                             )
                         }
+                        .disabled(!session.isReachable)
                     } label: {
                         Image(systemName: "ellipsis")
                     }
                 }
             }
-            .navigationTitle("Browse")
+            .navigationTitle(serverReachable ? "Browse" : "Offline")
             .toolbarTitleDisplayMode(.inlineLarge)
             .task { await load() }
             .refreshable { await load(force: true) }
-            .sheet(isPresented: $showServers) {
-                ServersView(jellyfinSession: session, seerrSession: seerrSession)
+            .sheet(isPresented: $showServices) {
+                ServicesView(jellyfinSession: session, seerrSession: seerrSession)
             }
             .sheet(isPresented: $showPendingRequests) { PendingRequestsView(session: seerrSession) }
             .onChange(of: seerrSession.account) { _, _ in
@@ -205,12 +206,9 @@ struct BrowseView: View {
         hasLoaded = true
         guard let api = session.api else { return }
         error = nil
-        let reachability = await api.reachability()
-        if reachability == .unauthorized {
-            session.handle(JellyfinError.unauthorized)
-            return
-        }
+        let reachability = await session.refreshReachability()
         serverReachable = reachability == .reachable
+        guard reachability != .unauthorized else { return }
         guard serverReachable else {
             resume = []
             nextUp = []

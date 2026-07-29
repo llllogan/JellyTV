@@ -1,11 +1,12 @@
 import SwiftUI
 
-struct ServersView: View {
+struct ServicesView: View {
     @ObservedObject var jellyfinSession: JellyfinSession
     @ObservedObject var seerrSession: SeerrSession
     @Environment(\.dismiss) private var dismiss
     @State private var showSeerrConnection = false
     @State private var jellyfinReachability: JellyfinReachability?
+    @State private var seerrReachable: Bool?
     @State private var isRefreshingLibraries = false
     @State private var libraryRefreshMessage: String?
     @State private var libraryRefreshProgress: Double?
@@ -86,12 +87,13 @@ struct ServersView: View {
                     }
                 }
             }
-            .navigationTitle("Servers")
+            .navigationTitle("Services")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) { Button(role: .close) { dismiss() } }
             }
             .sheet(isPresented: $showSeerrConnection) { SeerrConnectionView(session: seerrSession) }
             .task(id: jellyfinSession.account?.token) { await refreshJellyfinReachability() }
+            .task(id: seerrSession.account?.baseURL) { await refreshSeerrReachability() }
         }
     }
 
@@ -112,15 +114,26 @@ struct ServersView: View {
 
     private var seerrConnectionState: ConnectionState {
         guard seerrSession.isConnected else { return seerrSession.error == nil ? .notConnected : .disconnected }
-        return .connected
+        return seerrReachable == false ? .disconnected : .connected
     }
 
     private func refreshJellyfinReachability() async {
-        guard let api = jellyfinSession.api else {
-            jellyfinReachability = nil
+        jellyfinReachability = await jellyfinSession.refreshReachability()
+    }
+
+    private func refreshSeerrReachability() async {
+        guard let api = seerrSession.api else {
+            seerrReachable = nil
             return
         }
-        jellyfinReachability = await api.reachability()
+
+        do {
+            _ = try await api.currentUser()
+            seerrReachable = true
+        } catch {
+            seerrReachable = false
+            seerrSession.handle(error)
+        }
     }
 
     private func signOut() {
@@ -206,11 +219,11 @@ private enum ConnectionState {
     }
 }
 
-#Preview("Servers") {
-    ServersViewPreview()
+#Preview("Services") {
+    ServicesViewPreview()
 }
 
-private struct ServersViewPreview: View {
+private struct ServicesViewPreview: View {
     @StateObject private var jellyfinSession: JellyfinSession
     @StateObject private var seerrSession = SeerrSession()
 
@@ -226,6 +239,6 @@ private struct ServersViewPreview: View {
     }
 
     var body: some View {
-        ServersView(jellyfinSession: jellyfinSession, seerrSession: seerrSession)
+        ServicesView(jellyfinSession: jellyfinSession, seerrSession: seerrSession)
     }
 }
