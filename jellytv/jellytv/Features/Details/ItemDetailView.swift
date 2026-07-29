@@ -5,6 +5,7 @@ struct ItemDetailView: View {
     @EnvironmentObject private var player: PlayerCoordinator
     @EnvironmentObject private var session: JellyfinSession
     @EnvironmentObject private var downloads: OfflineDownloadManager
+    @EnvironmentObject private var favourites: FavouritesManager
     @EnvironmentObject private var itemDetailCache: ItemDetailCache
     @State private var details: JellyfinItem?
     @State private var children: [JellyfinItem] = []
@@ -96,6 +97,43 @@ struct ItemDetailView: View {
         .background(Color(uiColor: .systemBackground))
         .navigationTitle(item.type == "Series" ? "Show" : "Details")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            let target = details ?? item
+            if favourites.isSupported(target) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    if favourites.contains(target, account: session.account) {
+                        Button {
+                            favourites.unfavourite(target, account: session.account)
+                        } label: {
+                            Image(systemName: "star.fill")
+                                .foregroundStyle(.yellow)
+                        }
+                        .accessibilityLabel("Remove from favourites")
+                    } else if target.type == "Episode" {
+                        Menu {
+                            Button("Favourite episode") {
+                                favourites.favourite(target, account: session.account)
+                            }
+                            Button("Favourite season") {
+                                Task { await favouriteSeason(for: target) }
+                            }
+                        } label: {
+                            Image(systemName: "star")
+                        }
+                        .disabled(session.account == nil || target.seasonID == nil)
+                        .accessibilityLabel("Add to favourites")
+                    } else {
+                        Button {
+                            favourites.favourite(target, account: session.account)
+                        } label: {
+                            Image(systemName: "star")
+                        }
+                        .disabled(session.account == nil)
+                        .accessibilityLabel("Add to favourites")
+                    }
+                }
+            }
+        }
         .task(id: item.id) { await load() }
     }
 
@@ -282,6 +320,20 @@ struct ItemDetailView: View {
             )
         } catch {
             session.handle(error)
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func favouriteSeason(for episode: JellyfinItem) async {
+        guard let seasonID = episode.seasonID,
+              let account = session.account,
+              let api = session.api
+        else { return }
+
+        do {
+            let season = try await api.item(id: seasonID)
+            favourites.favourite(season, account: account)
+        } catch {
             self.error = error.localizedDescription
         }
     }

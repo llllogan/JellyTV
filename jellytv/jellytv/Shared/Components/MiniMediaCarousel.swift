@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct DownloadedMediaCarousel: View {
+struct MiniMediaCarousel: View {
     let items: [JellyfinItem]
 
     var body: some View {
@@ -11,7 +11,7 @@ struct DownloadedMediaCarousel: View {
                         ItemDetailView(item: item)
                             .id(item.id)
                     } label: {
-                        DownloadedMediaCard(item: item)
+                        MiniMediaCard(item: item)
                     }
                     .buttonStyle(.plain)
                 }
@@ -26,7 +26,7 @@ struct DownloadedMediaCarousel: View {
     }
 }
 
-private struct DownloadedMediaCard: View {
+private struct MiniMediaCard: View {
     let item: JellyfinItem
 
     private var subtitle: String {
@@ -41,7 +41,6 @@ private struct DownloadedMediaCard: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // A third of the 198-point artwork height used by MediaCard.
             ArtworkView(item: item, width: 44, height: 66)
 
             VStack(alignment: .leading, spacing: 5) {

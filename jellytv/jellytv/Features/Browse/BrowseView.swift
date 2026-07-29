@@ -21,6 +21,7 @@ struct BrowseView: View {
     @ObservedObject var session: JellyfinSession
     @ObservedObject var seerrSession: SeerrSession
     @EnvironmentObject private var downloads: OfflineDownloadManager
+    @EnvironmentObject private var favourites: FavouritesManager
     @State private var resume: [JellyfinItem] = []
     @State private var nextUp: [JellyfinItem] = []
     @State private var discovery: [String: [SeerrMedia]] = [:]
@@ -70,7 +71,7 @@ struct BrowseView: View {
                 } else {
                     if !filteredDownloaded.isEmpty {
                         Section("On my device") {
-                            DownloadedMediaCarousel(items: filteredDownloaded)
+                            MiniMediaCarousel(items: filteredDownloaded)
                                 .listRowInsets(EdgeInsets())
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
@@ -80,6 +81,15 @@ struct BrowseView: View {
                     if !filtered(resume).isEmpty {
                         Section("Continue Watching") {
                             MediaCarousel(items: filtered(resume), detailStyle: .remainingTime)
+                                .listRowInsets(EdgeInsets())
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                        }
+                    }
+
+                    if !filtered(favourites.items(for: session.account)).isEmpty {
+                        Section("Favourites") {
+                            MiniMediaCarousel(items: filtered(favourites.items(for: session.account)))
                                 .listRowInsets(EdgeInsets())
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)

@@ -25,6 +25,7 @@ struct CatalogView: View {
     @ObservedObject var session: JellyfinSession
     @ObservedObject var seerrSession: SeerrSession
     @EnvironmentObject private var downloads: OfflineDownloadManager
+    @EnvironmentObject private var favourites: FavouritesManager
     let type: String
     let title: String
 
@@ -72,6 +73,12 @@ struct CatalogView: View {
             .sorted { $0.genre.localizedCaseInsensitiveCompare($1.genre) == .orderedAscending }
     }
 
+    private var favouriteItems: [JellyfinItem] {
+        favourites.items(for: session.account).filter { item in
+            type == "Movie" ? item.type == "Movie" : item.type != "Movie"
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -95,6 +102,15 @@ struct CatalogView: View {
                         }
                     }
                 } else {
+                    if !favouriteItems.isEmpty {
+                        Section("Favourites") {
+                            MiniMediaCarousel(items: favouriteItems)
+                                .listRowInsets(EdgeInsets())
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                        }
+                    }
+
                     ForEach(genreSections) { section in
                         Section(section.genre) {
                             MediaCarousel(items: section.items)
