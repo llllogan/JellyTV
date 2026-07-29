@@ -66,12 +66,15 @@ struct SeerrSearchRow: View {
 struct SeerrMediaDetailView: View {
     let media: SeerrMedia
     @ObservedObject var session: SeerrSession
+    @EnvironmentObject private var jellyfinSession: JellyfinSession
     @State private var movie: SeerrMovieDetails?
     @State private var show: SeerrTVDetails?
     @State private var submittedStatus: String?
     @State private var error: String?
     @State private var isRequesting = false
-    @State private var showSeasonPicker = false
+    @State private var selectedSeasonNumbers = Set<Int>()
+    @State private var locallyPendingSeasonNumbers = Set<Int>()
+    @State private var librarySeasonNumbers = Set<Int>()
 
     private var isTV: Bool { media.isTV }
     private var title: String { movie?.title ?? show?.name ?? media.displayTitle }
@@ -82,10 +85,27 @@ struct SeerrMediaDetailView: View {
     }
     private var isAvailable: Bool { (movie?.mediaInfo?.status ?? show?.mediaInfo?.status ?? media.mediaInfo?.status ?? media.status) == 5 }
     private var existingStatus: String? {
-        submittedStatus ?? (movie?.mediaInfo?.requests?.first?.statusText ?? show?.mediaInfo?.requests?.first?.statusText)
+        submittedStatus ?? movie?.mediaInfo?.requests?.first?.statusText
+    }
+    private var requestableSeasons: [SeerrSeason] { (show?.seasons ?? []).filter { $0.seasonNumber > 0 } }
+    private var selectedSeasonTitle: String {
+        selectedSeasonNumbers.count == 1 ? "Request 1 season" : "Request \(selectedSeasonNumbers.count) seasons"
     }
 
     var body: some View {
+        Group {
+            if isTV {
+                tvDetail
+            } else {
+                movieDetail
+            }
+        }
+        .navigationTitle(isTV ? "Show" : "Movie")
+        .navigationBarTitleDisplayMode(.inline)
+        .task(id: media.requestableID) { await load() }
+    }
+
+    private var movieDetail: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 AsyncImage(url: artwork) { $0.resizable().scaledToFill() } placeholder: { Color.gray.opacity(0.18) }
@@ -97,17 +117,74 @@ struct SeerrMediaDetailView: View {
                 if let error { Text(error).foregroundStyle(.red) }
             }.padding()
         }
-        .navigationTitle(isTV ? "Show" : "Movie").navigationBarTitleDisplayMode(.inline)
-        .task(id: media.requestableID) { await load() }
-        .sheet(isPresented: $showSeasonPicker) {
-            TVSeasonRequestView(
-                mediaID: media.requestableID,
-                seasons: show?.seasons ?? [],
-                session: session
-            ) { request in
-                submittedStatus = request.statusText
+    }
+
+    private var tvDetail: some View {
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 16) {
+                    AsyncImage(url: artwork) { $0.resizable().scaledToFill() } placeholder: { Color.gray.opacity(0.18) }
+                        .frame(width: 180, height: 270)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .frame(maxWidth: .infinity)
+                    Text(title).font(.title.bold())
+                    if let release = show?.firstAirDate ?? media.releaseText { Text(release).foregroundStyle(.secondary) }
+                    if let overview { Text(overview).foregroundStyle(.secondary) }
+                    if let error { Text(error).foregroundStyle(.red) }
+                }
+                .padding(.bottom)
+            }
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color(uiColor: .systemBackground))
+
+            if !requestableSeasons.isEmpty {
+                Section {
+                    ForEach(requestableSeasons, id: \.stableID) { season in
+                        seasonRow(season)
+                    }
+
+                    Button { Task { await requestSelectedSeasons() } } label: {
+                        Text(isRequesting ? "Requesting…" : selectedSeasonTitle)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(selectedSeasonNumbers.isEmpty || isRequesting)
+                }
+                .listRowBackground(Color(uiColor: .secondarySystemBackground))
             }
         }
+        .listStyle(.insetGrouped)
+        .listSectionSpacing(.compact)
+        .scrollContentBackground(.hidden)
+        .background(Color(uiColor: .systemBackground))
+    }
+
+    private enum SeasonState {
+        case available
+        case pending
+        case selectable(isSelected: Bool)
+    }
+
+    @ViewBuilder private func seasonRow(_ season: SeerrSeason) -> some View {
+        let state = seasonState(for: season)
+        Button {
+            guard case let .selectable(isSelected) = state else { return }
+            if isSelected {
+                selectedSeasonNumbers.remove(season.seasonNumber)
+            } else {
+                selectedSeasonNumbers.insert(season.seasonNumber)
+            }
+        } label: {
+            HStack {
+                Text(season.name ?? "Season \(season.seasonNumber)")
+                Spacer()
+                seasonStatusSymbol(for: state)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(isSeasonUnavailable(state))
+        .animation(.default, value: selectedSeasonNumbers)
     }
 
     @ViewBuilder private var requestArea: some View {
@@ -115,14 +192,6 @@ struct SeerrMediaDetailView: View {
             Label("Available in your library", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
         } else if let existingStatus {
             Label(existingStatus, systemImage: "clock.fill").foregroundStyle(.orange)
-        } else if isTV {
-            Button { showSeasonPicker = true } label: {
-                Label("Request", systemImage: "plus")
-                    .padding(.horizontal, 14)
-                    .frame(height: 32)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.regular)
         } else {
             Button { Task { await request() } } label: {
                 Label(isRequesting ? "Requesting…" : "Request", systemImage: "plus")
@@ -140,11 +209,28 @@ struct SeerrMediaDetailView: View {
         movie = nil
         show = nil
         submittedStatus = nil
+        selectedSeasonNumbers = []
+        locallyPendingSeasonNumbers = []
+        librarySeasonNumbers = []
         error = nil
         do {
-            if isTV { show = try await api.tv(id: media.requestableID) }
-            else { movie = try await api.movie(id: media.requestableID) }
+            if isTV {
+                let details = try await api.tv(id: media.requestableID)
+                show = details
+                await loadLibrarySeasons(for: details)
+            } else {
+                movie = try await api.movie(id: media.requestableID)
+            }
         } catch { session.handle(error); self.error = error.localizedDescription }
+    }
+
+    private func loadLibrarySeasons(for details: SeerrTVDetails) async {
+        guard let mediaID = details.mediaInfo?.jellyfinMediaID,
+              let api = jellyfinSession.api,
+              let seasons = try? await api.children(parentID: mediaID, type: "Season")
+        else { return }
+
+        librarySeasonNumbers = Set(seasons.compactMap(\.indexNumber))
     }
 
     private func request() async {
@@ -156,58 +242,81 @@ struct SeerrMediaDetailView: View {
             submittedStatus = response.statusText
         } catch { session.handle(error); self.error = error.localizedDescription }
     }
-}
 
-struct TVSeasonRequestView: View {
-    let mediaID: Int
-    let seasons: [SeerrSeason]
-    @ObservedObject var session: SeerrSession
-    let onRequested: (SeerrRequest) -> Void
-    @Environment(\.dismiss) private var dismiss
-    @State private var selectedSeasons = Set<Int>()
-    @State private var isSubmitting = false
-    @State private var error: String?
-
-    private var requestableSeasons: [SeerrSeason] {
-        seasons.filter { $0.seasonNumber > 0 }
+    private func seasonState(for season: SeerrSeason) -> SeasonState {
+        let mediaStatus = libraryStatus(for: season)
+        if librarySeasonNumbers.contains(season.seasonNumber) || show?.mediaInfo?.status == 5 || mediaStatus == 5 {
+            return .available
+        }
+        if locallyPendingSeasonNumbers.contains(season.seasonNumber) || isLibraryInProgress(mediaStatus) || isRequestPending(requestStatus(for: season)) {
+            return .pending
+        }
+        return .selectable(isSelected: selectedSeasonNumbers.contains(season.seasonNumber))
     }
 
-    var body: some View {
-        NavigationStack {
-            List {
-                Section("Seasons") {
-                    ForEach(requestableSeasons, id: \.stableID) { season in
-                        Toggle(season.name ?? "Season \(season.seasonNumber)", isOn: Binding(
-                            get: { selectedSeasons.contains(season.seasonNumber) },
-                            set: { isSelected in
-                                if isSelected { selectedSeasons.insert(season.seasonNumber) }
-                                else { selectedSeasons.remove(season.seasonNumber) }
-                            }
-                        ))
-                    }
-                }
-                if let error { Section { Text(error).foregroundStyle(.red) } }
-            }
-            .listStyle(.insetGrouped)
-            .navigationTitle("Request Seasons")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) { Button(role: .cancel) { dismiss() } }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(role: .confirm) { Task { await submit() } }
-                        .disabled(selectedSeasons.isEmpty || isSubmitting)
-                }
+    private func libraryStatus(for season: SeerrSeason) -> Int? {
+        show?.mediaInfo?.seasons?.first(where: { $0.seasonNumber == season.seasonNumber })?.status
+    }
+
+    private func requestStatus(for season: SeerrSeason) -> Int? {
+        let requests = (show?.mediaInfo?.requests ?? []) + (season.mediaInfo?.requests ?? [])
+        for request in requests.reversed() {
+            guard let requestedSeason = request.seasons?.first(where: { $0.seasonNumber == season.seasonNumber }) else { continue }
+            return requestedSeason.status ?? request.status
+        }
+        return nil
+    }
+
+    private func isLibraryInProgress(_ status: Int?) -> Bool {
+        status == 2 || status == 3 || status == 4
+    }
+
+    private func isRequestPending(_ status: Int?) -> Bool {
+        status == 1 || status == 2
+    }
+
+    private func isSeasonUnavailable(_ state: SeasonState) -> Bool {
+        switch state {
+        case .selectable: false
+        case .available, .pending: true
+        }
+    }
+
+    @ViewBuilder private func seasonStatusSymbol(for state: SeasonState) -> some View {
+        switch state {
+        case .available:
+            Image(systemName: "checkmark")
+                .fontWeight(.bold)
+                .foregroundStyle(.green)
+        case .pending:
+            Text("Pending")
+                .font(.subheadline)
+                .foregroundStyle(.orange)
+        case let .selectable(isSelected):
+            if isSelected {
+                Image(systemName: "checkmark.circle")
+                    .fontWeight(.bold)
+                    .contentTransition(.symbolEffect(.replace))
+                    .foregroundStyle(.tint)
+            } else {
+                Image(systemName: "circle")
+                    .fontWeight(.bold)
+                    .contentTransition(.symbolEffect(.replace))
+                    .foregroundStyle(.secondary)
             }
         }
     }
 
-    private func submit() async {
+    private func requestSelectedSeasons() async {
         guard let api = session.api else { return }
-        isSubmitting = true
-        defer { isSubmitting = false }
+        let seasons = selectedSeasonNumbers.sorted()
+        isRequesting = true
+        error = nil
+        defer { isRequesting = false }
         do {
-            let request = try await api.requestTV(id: mediaID, seasons: selectedSeasons.sorted())
-            onRequested(request)
-            dismiss()
+            _ = try await api.requestTV(id: media.requestableID, seasons: seasons)
+            locallyPendingSeasonNumbers.formUnion(seasons)
+            selectedSeasonNumbers = []
         } catch {
             session.handle(error)
             self.error = error.localizedDescription

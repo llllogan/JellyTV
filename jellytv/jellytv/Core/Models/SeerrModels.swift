@@ -91,7 +91,20 @@ struct SeerrMedia: Codable, Identifiable, Hashable, Sendable {
 struct SeerrMediaInfo: Codable, Hashable, Sendable {
     let id: Int?
     let status: Int?
+    let jellyfinMediaID: String?
     let requests: [SeerrRequest]?
+    let seasons: [SeerrMediaSeason]?
+
+    enum CodingKeys: String, CodingKey {
+        case id, status, requests, seasons
+        case jellyfinMediaID = "jellyfinMediaId"
+    }
+}
+
+struct SeerrMediaSeason: Codable, Hashable, Sendable {
+    let id: Int?
+    let seasonNumber: Int
+    let status: Int?
 }
 
 struct SeerrRequest: Codable, Identifiable, Hashable, Sendable {
@@ -100,6 +113,7 @@ struct SeerrRequest: Codable, Identifiable, Hashable, Sendable {
     let media: SeerrMedia?
     let createdAt: String?
     let mediaType: String?
+    let seasons: [SeerrRequestSeason]?
 
     var statusText: String {
         switch status {
@@ -113,17 +127,24 @@ struct SeerrRequest: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
+struct SeerrRequestSeason: Codable, Hashable, Sendable {
+    let id: Int?
+    let seasonNumber: Int
+    let status: Int?
+}
+
 struct SeerrSeason: Codable, Identifiable, Hashable, Sendable {
     let id: Int?
     let seasonNumber: Int
     let name: String?
     let overview: String?
     let airDate: String?
+    let mediaInfo: SeerrMediaInfo?
 
     var stableID: Int { id ?? seasonNumber }
 
     enum CodingKeys: String, CodingKey {
-        case id, seasonNumber, name, overview, airDate
+        case id, seasonNumber, name, overview, airDate, mediaInfo
     }
 }
 
