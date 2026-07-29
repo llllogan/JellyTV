@@ -7,7 +7,6 @@ struct SearchLibraryView: View {
     @State private var items: [JellyfinItem] = []
     @State private var seerrItems: [SeerrMedia] = []
     @State private var error: String?
-    @State private var showServers = false
     @FocusState private var isSearchFocused: Bool
 
     var body: some View {
@@ -53,16 +52,6 @@ struct SearchLibraryView: View {
             .onAppear { isSearchFocused = true }
             .navigationTitle("Search")
             .toolbarTitleDisplayMode(.inlineLarge)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showServers = true } label: {
-                        Image(systemName: "gearshape")
-                    }
-                }
-            }
-            .sheet(isPresented: $showServers) {
-                ServersView(jellyfinSession: session, seerrSession: seerrSession)
-            }
             .task(id: query) {
                 let searchQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !searchQuery.isEmpty else {

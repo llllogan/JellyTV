@@ -149,13 +149,18 @@ struct CatalogView: View {
                     } label: {
                         Image(systemName: "line.3.horizontal.decrease")
                     }
-                    if seerrSession.user?.canApproveRequests == true {
-                        PendingRequestsView.ApprovalEnvelopeButton(session: seerrSession) {
-                            showPendingRequests = true
+                    Menu {
+                        Button { showServers = true } label: {
+                            Label("Server", systemImage: "externaldrive.badge.icloud")
                         }
-                    }
-                    Button { showServers = true } label: {
-                        Image(systemName: "gearshape")
+                        Button { showPendingRequests = true } label: {
+                            Label(
+                                "Requests",
+                                systemImage: seerrSession.pendingApprovalCount > 0 ? "envelope.open" : "envelope"
+                            )
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
                     }
                 }
             }
