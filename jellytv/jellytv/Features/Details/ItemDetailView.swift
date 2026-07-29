@@ -16,6 +16,7 @@ struct ItemDetailView: View {
     @State private var selectedAudioStreamIndex: Int?
     @State private var favouriteMessage: String?
     @State private var favouriteMessageID = UUID()
+    @State private var isFavouritePillExpanded = false
 
     init(item: JellyfinItem) {
         self.item = item
@@ -175,8 +176,10 @@ struct ItemDetailView: View {
         .scrollEdgeEffectHidden(true, for: .top)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                favouriteToolbarTitle
+            if favouriteMessage != nil {
+                ToolbarItem(placement: .principal) {
+                    favouriteToolbarTitle
+                }
             }
 
             let target = details ?? item
@@ -221,47 +224,19 @@ struct ItemDetailView: View {
         .task(id: item.id) { await load() }
     }
 
-    private var favouriteToolbarTitle: some View {
-        ZStack {
-            Text(defaultToolbarTitle)
-                .frame(width: 230)
-                .opacity(favouriteMessage == nil ? 1 : 0)
-                .offset(y: favouriteMessage == nil ? 0 : -22)
-                .rotation3DEffect(
-                    .degrees(favouriteMessage == nil ? 0 : -80),
-                    axis: (x: 1, y: 0, z: 0),
-                    anchor: .bottom
-                )
-
-            if let favouriteMessage {
-                Text(favouriteMessage)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    .frame(width: 230)
-                    .transition(
-                        .asymmetric(
-                            insertion: .move(edge: .bottom).combined(with: .opacity),
-                            removal: .move(edge: .bottom).combined(with: .opacity)
-                        )
-                    )
-            }
-        }
-        .font(.headline)
-        .frame(width: 230, height: 22)
-        .clipped()
-        .animation(.snappy(duration: 0.35), value: favouriteMessage)
-        .frame(width: 230, height: 44)
-        .glassEffect(.regular, in: .capsule)
-        .accessibilityLabel(favouriteMessage ?? defaultToolbarTitle)
-    }
-
-    private var defaultToolbarTitle: String {
-        switch (details ?? item).type {
-        case "Movie": "Movie"
-        case "Series": "Series"
-        case "Season": "Season"
-        case "Episode": "Episode"
-        default: "Details"
+    @ViewBuilder private var favouriteToolbarTitle: some View {
+        if let favouriteMessage {
+            Text(favouriteMessage)
+                .font(.headline)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.horizontal, 16)
+                .frame(height: 44)
+                .glassEffect(.regular, in: .capsule)
+                .scaleEffect(x: isFavouritePillExpanded ? 1 : 0.01, y: 1, anchor: .center)
+                .opacity(isFavouritePillExpanded ? 1 : 0)
+                .animation(.snappy(duration: 0.35), value: isFavouritePillExpanded)
+                .accessibilityLabel(favouriteMessage)
         }
     }
 
@@ -269,15 +244,26 @@ struct ItemDetailView: View {
         let message = wasAdded ? "Added to favourites" : "Removed from favourites"
         let messageID = UUID()
         favouriteMessageID = messageID
+        isFavouritePillExpanded = false
 
-        withAnimation {
-            favouriteMessage = message
-        }
+        favouriteMessage = message
 
         Task {
-            try? await Task.sleep(for: .seconds(3))
+            await Task.yield()
             guard favouriteMessageID == messageID else { return }
-            withAnimation {
+            withAnimation(.snappy(duration: 0.35)) {
+                isFavouritePillExpanded = true
+            }
+
+            try? await Task.sleep(for: .seconds(2))
+            guard favouriteMessageID == messageID else { return }
+            withAnimation(.snappy(duration: 0.35)) {
+                isFavouritePillExpanded = false
+            }
+
+            try? await Task.sleep(for: .milliseconds(350))
+            guard favouriteMessageID == messageID else { return }
+            withAnimation(.none) {
                 favouriteMessage = nil
             }
         }
