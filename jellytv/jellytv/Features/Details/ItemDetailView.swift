@@ -26,43 +26,105 @@ struct ItemDetailView: View {
         List {
             Section {
                 let target = details ?? item
-                ArtworkView(
-                    item: target,
-                    height: 460,
-                    preferredArtworkURL: target.backdropImageURL,
-                    fillsFrame: true,
-                    cornerRadius: 0
-                )
+                ZStack(alignment: .topLeading) {
+                    ArtworkView(
+                        item: target,
+                        height: nil,
+                        fillsFrame: true,
+                        cornerRadius: 0
+                    )
+                    .padding(.top, 50)
+
+                    ArtworkView(
+                        item: target,
+                        height: nil,
+                        fillsFrame: true,
+                        cornerRadius: 0
+                    )
+                    .fixedSize(horizontal: false, vertical: true)
+                    .scaleEffect(x: 1, y: -1, anchor: .center)
+                    .frame(maxWidth: .infinity, alignment: .bottom)
+                    .frame(height: 50, alignment: .bottom)
+                    .clipped()
+
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(target.name).font(.title.bold())
+                            detailSubtitle(for: target)
+                        }
+
+                        actionRow
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 64)
+                    .padding(.bottom, 24)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background {
+                        ZStack {
+                            LinearGradient(
+                                colors: [.clear, .black.opacity(0.75)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            Rectangle()
+                                .fill(.thinMaterial)
+                                .mask(
+                                    LinearGradient(
+                                        colors: [.clear, .clear, .black.opacity(0.9)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                            )
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .environment(\.colorScheme, .dark)
+
+                    LinearGradient(
+                        colors: [.black.opacity(0.9), .black.opacity(0.7), .clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 100)
+                    .background {
+                        Rectangle()
+                            .fill(.thinMaterial)
+                            .mask(
+                                LinearGradient(
+                                    colors: [.black.opacity(0.95), .black.opacity(0.75), .clear],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .allowsHitTesting(false)
+                }
+                .containerRelativeFrame(.horizontal)
                 .listRowInsets(EdgeInsets())
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
-
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(target.name).font(.title.bold())
-                        detailSubtitle(for: target)
-                    }
-                    
-                    actionRow
-                    
-                    if case let .downloading(progress) = downloads.state(for: target.id, account: session.account) {
-                        Text("Downloading \(Int(progress * 100))% (\(ByteCountFormatter.string(fromByteCount: downloads.downloadedBytes(itemID: target.id, account: session.account), countStyle: .file)))")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                    if case let .failed(message) = downloads.state(for: (details ?? item).id, account: session.account) {
-                        Text(message).font(.footnote).foregroundStyle(.red)
-                    }
-                    if let error { Text(error).foregroundStyle(.red) }
-                    if let overview = target.overview { Text(overview).foregroundStyle(.secondary) }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom)
                 .id("summary")
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color(uiColor: .systemBackground))
+
+                if hasSupplementaryDetails(for: target) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if case let .downloading(progress) = downloads.state(for: target.id, account: session.account) {
+                            Text("Downloading \(Int(progress * 100))% (\(ByteCountFormatter.string(fromByteCount: downloads.downloadedBytes(itemID: target.id, account: session.account), countStyle: .file)))")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        if case let .failed(message) = downloads.state(for: target.id, account: session.account) {
+                            Text(message).font(.footnote).foregroundStyle(.red)
+                        }
+                        if let error { Text(error).foregroundStyle(.red) }
+                        if let overview = target.overview { Text(overview).foregroundStyle(.secondary) }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 24)
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color(uiColor: .systemBackground))
+                }
             }
             .listSectionMargins(.horizontal, 0)
 
@@ -226,6 +288,16 @@ struct ItemDetailView: View {
             get: { savedScrollPosition.isEmpty ? nil : savedScrollPosition },
             set: { savedScrollPosition = $0 ?? "" }
         )
+    }
+
+    private func hasSupplementaryDetails(for target: JellyfinItem) -> Bool {
+        if case .downloading = downloads.state(for: target.id, account: session.account) {
+            return true
+        }
+        if case .failed = downloads.state(for: target.id, account: session.account) {
+            return true
+        }
+        return error != nil || target.overview != nil
     }
 
     private func hierarchyRow(_ parent: JellyfinItem) -> some View {

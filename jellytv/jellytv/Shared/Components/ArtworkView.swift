@@ -3,7 +3,7 @@ import SwiftUI
 struct ArtworkView: View {
     let item: JellyfinItem
     let width: CGFloat?
-    let height: CGFloat
+    let height: CGFloat?
     let preferredArtworkURL: URL?
     let fillsFrame: Bool
     let cornerRadius: CGFloat
@@ -13,7 +13,7 @@ struct ArtworkView: View {
     init(
         item: JellyfinItem,
         width: CGFloat? = nil,
-        height: CGFloat,
+        height: CGFloat?,
         preferredArtworkURL: URL? = nil,
         fillsFrame: Bool = false,
         cornerRadius: CGFloat = 8
@@ -65,26 +65,41 @@ struct ArtworkView: View {
     }
 
     @ViewBuilder private func artworkImage(_ image: Image) -> some View {
-        if fillsFrame {
+        if fillsFrame, let height {
             image
                 .resizable()
                 .scaledToFill()
                 .frame(maxWidth: .infinity)
                 .frame(height: height)
-        } else if let width {
+        } else if fillsFrame {
+            image
+                .resizable()
+                .scaledToFit()
+                .containerRelativeFrame(.horizontal)
+        } else if let width, let height {
             image
                 .resizable()
                 .scaledToFill()
                 .frame(width: width, height: height)
-        } else {
+        } else if let height {
             image
                 .resizable()
                 .scaledToFit()
                 .frame(height: height)
+        } else {
+            image
+                .resizable()
+                .scaledToFit()
         }
     }
 
-    private var placeholder: some View {
+    @ViewBuilder private var placeholder: some View {
+        if fillsFrame, height == nil {
+            Color.gray.opacity(0.18)
+                .overlay(Image(systemName: "film"))
+                .frame(maxWidth: .infinity)
+                .aspectRatio(2 / 3, contentMode: .fit)
+        } else {
         Color.gray.opacity(0.18)
             .overlay(Image(systemName: "film"))
             .frame(
@@ -92,6 +107,7 @@ struct ArtworkView: View {
                 minHeight: height,
                 maxHeight: height
             )
-            .frame(width: fillsFrame ? nil : width ?? height * 2 / 3)
+            .frame(width: fillsFrame ? nil : width ?? (height ?? 0) * 2 / 3)
+        }
     }
 }
