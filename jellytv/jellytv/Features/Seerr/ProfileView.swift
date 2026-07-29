@@ -7,9 +7,6 @@ struct ServicesView: View {
     @State private var showSeerrConnection = false
     @State private var jellyfinReachability: JellyfinReachability?
     @State private var seerrReachable: Bool?
-    @State private var isRefreshingLibraries = false
-    @State private var libraryRefreshMessage: String?
-    @State private var libraryRefreshProgress: Double?
 
     var body: some View {
         NavigationStack {
@@ -69,23 +66,6 @@ struct ServicesView: View {
                         }
                     }
                 }
-
-                if jellyfinSession.account?.isAdministrator == true {
-                    Section("Library") {
-                        Button("Refresh All Libraries") { Task { await refreshLibraries() } }
-                            .disabled(isRefreshingLibraries)
-                        if isRefreshingLibraries {
-                            if let libraryRefreshProgress {
-                                ProgressView(value: libraryRefreshProgress)
-                            } else {
-                                ProgressView()
-                            }
-                        }
-                        if let libraryRefreshMessage, !isRefreshingLibraries {
-                            Text(libraryRefreshMessage).foregroundStyle(.red)
-                        }
-                    }
-                }
             }
             .navigationTitle("Services")
             .toolbar {
@@ -142,59 +122,6 @@ struct ServicesView: View {
         dismiss()
     }
 
-    private func refreshLibraries() async {
-        guard let api = jellyfinSession.api else { return }
-        isRefreshingLibraries = true
-        libraryRefreshMessage = nil
-        libraryRefreshProgress = nil
-        do {
-            try await api.refreshLibraries()
-            await monitorLibraryRefresh(using: api)
-        } catch {
-            jellyfinSession.handle(error)
-            libraryRefreshMessage = error.localizedDescription
-            isRefreshingLibraries = false
-        }
-    }
-
-    private func monitorLibraryRefresh(using api: JellyfinAPI) async {
-        var refreshWasRunning = false
-
-        for attempt in 0 ..< 3_600 {
-            do {
-                if let task = try await api.libraryRefreshTask() {
-                    if task.isRunning {
-                        refreshWasRunning = true
-                        let progress = min(max((task.currentProgressPercentage ?? 0) / 100, 0), 1)
-                        libraryRefreshProgress = progress
-                        libraryRefreshMessage = "Refreshing library…"
-                    } else if refreshWasRunning {
-                        libraryRefreshProgress = 1
-                        libraryRefreshMessage = nil
-                        isRefreshingLibraries = false
-                        return
-                    } else if attempt >= 10 {
-                        libraryRefreshMessage = nil
-                        isRefreshingLibraries = false
-                        return
-                    }
-                } else if attempt >= 10 {
-                    libraryRefreshMessage = nil
-                    isRefreshingLibraries = false
-                    return
-                }
-                try await Task.sleep(for: .seconds(1))
-            } catch {
-                jellyfinSession.handle(error)
-                libraryRefreshMessage = error.localizedDescription
-                isRefreshingLibraries = false
-                return
-            }
-        }
-
-        libraryRefreshMessage = nil
-        isRefreshingLibraries = false
-    }
 }
 
 private enum ConnectionState {

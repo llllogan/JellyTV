@@ -22,6 +22,10 @@ final class JellyfinSession: ObservableObject {
         reachability == .reachable
     }
 
+    var canViewStorage: Bool {
+        account?.isAdministrator == true
+    }
+
     func restore() async {
         defer { isRestoring = false }
         account = KeychainStore.load()

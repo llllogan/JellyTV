@@ -32,6 +32,7 @@ struct BrowseView: View {
     @State private var error: String?
     @State private var showServices = false
     @State private var showPendingRequests = false
+    @State private var showStorage = false
     @State private var hasLoaded = false
     @State private var mediaFilter: MediaFilter = .all
     @State private var serverReachable = true
@@ -165,8 +166,16 @@ struct BrowseView: View {
                     }
                     Menu {
                         Button { showServices = true } label: {
-                            Label("Services", systemImage: "externaldrive.badge.icloud")
+                            Label("Services", systemImage: "cloud")
                         }
+                        
+                        Button { showStorage = true } label: {
+                            Label("Storage", systemImage: "internaldrive")
+                        }
+                        .disabled(!session.canViewStorage)
+                        
+                        Divider()
+                        
                         Button { showPendingRequests = true } label: {
                             Label(
                                 "Requests",
@@ -187,6 +196,7 @@ struct BrowseView: View {
                 ServicesView(jellyfinSession: session, seerrSession: seerrSession)
             }
             .sheet(isPresented: $showPendingRequests) { PendingRequestsView(session: seerrSession) }
+            .sheet(isPresented: $showStorage) { StorageView(session: session) }
             .onChange(of: seerrSession.account) { _, _ in
                 if seerrSession.api == nil {
                     discovery = [:]

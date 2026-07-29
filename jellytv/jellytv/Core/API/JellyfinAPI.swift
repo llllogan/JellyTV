@@ -98,6 +98,14 @@ struct JellyfinAPI {
         try await get("Users/\(account.userID)", query: [], as: JellyfinUser.self)
     }
 
+    func systemStorage() async throws -> JellyfinSystemStorage {
+        try await get("System/Info/Storage", query: [], as: JellyfinSystemStorage.self)
+    }
+
+    func drives() async throws -> [JellyfinDrive] {
+        try await get("Environment/Drives", query: [], as: [JellyfinDrive].self)
+    }
+
     func refreshLibraries() async throws {
         let (_, response) = try await URLSession.shared.data(for: request(path: "Library/Refresh", method: "POST"))
         guard let http = response as? HTTPURLResponse else { throw JellyfinError.invalidResponse }

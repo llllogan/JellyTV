@@ -251,6 +251,132 @@ struct JellyfinUserPolicy: Codable {
     }
 }
 
+struct JellyfinSystemStorage: Decodable {
+    let programDataFolder: JellyfinStorageFolder?
+    let webFolder: JellyfinStorageFolder?
+    let imageCacheFolder: JellyfinStorageFolder?
+    let internalMetadataFolder: JellyfinStorageFolder?
+    let logFolder: JellyfinStorageFolder?
+    let cacheFolder: JellyfinStorageFolder?
+    let transcodingTempFolder: JellyfinStorageFolder?
+    let libraries: [JellyfinLibraryStorage]?
+
+    var locations: [JellyfinStorageLocation] {
+        var locations: [JellyfinStorageLocation] = [
+            .init(name: "Program Data", folder: programDataFolder),
+            .init(name: "Web", folder: webFolder),
+            .init(name: "Image Cache", folder: imageCacheFolder),
+            .init(name: "Internal Metadata", folder: internalMetadataFolder),
+            .init(name: "Logs", folder: logFolder),
+            .init(name: "Cache", folder: cacheFolder),
+            .init(name: "Transcoding", folder: transcodingTempFolder),
+        ].compactMap { $0 }
+
+        for library in libraries ?? [] {
+            let folders = library.folders ?? []
+            for (index, folder) in folders.enumerated() {
+                let suffix = folders.count == 1 ? "" : " \(index + 1)"
+                locations.append(
+                    JellyfinStorageLocation(
+                        name: "\(library.name ?? "Library")\(suffix)",
+                        folder: folder
+                    )
+                )
+            }
+        }
+
+        return locations
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case programDataFolder = "ProgramDataFolder"
+        case webFolder = "WebFolder"
+        case imageCacheFolder = "ImageCacheFolder"
+        case internalMetadataFolder = "InternalMetadataFolder"
+        case logFolder = "LogFolder"
+        case cacheFolder = "CacheFolder"
+        case transcodingTempFolder = "TranscodingTempFolder"
+        case libraries = "Libraries"
+    }
+}
+
+struct JellyfinLibraryStorage: Decodable {
+    let name: String?
+    let folders: [JellyfinStorageFolder]?
+
+    enum CodingKeys: String, CodingKey {
+        case name = "Name"
+        case folders = "Folders"
+    }
+}
+
+struct JellyfinStorageFolder: Decodable {
+    let path: String?
+    let freeSpace: Int64?
+    let usedSpace: Int64?
+    let storageType: String?
+    let deviceID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case path = "Path"
+        case freeSpace = "FreeSpace"
+        case usedSpace = "UsedSpace"
+        case storageType = "StorageType"
+        case deviceID = "DeviceId"
+    }
+}
+
+struct JellyfinStorageLocation: Identifiable {
+    let name: String
+    let path: String?
+    let freeSpace: Int64?
+    let usedSpace: Int64?
+    let storageType: String?
+
+    init?(name: String, folder: JellyfinStorageFolder?) {
+        guard let folder else { return nil }
+        self.name = name
+        path = folder.path
+        freeSpace = folder.freeSpace
+        usedSpace = folder.usedSpace
+        storageType = folder.storageType
+    }
+
+    init(name: String, folder: JellyfinStorageFolder) {
+        self.name = name
+        path = folder.path
+        freeSpace = folder.freeSpace
+        usedSpace = folder.usedSpace
+        storageType = folder.storageType
+    }
+
+    var id: String { [name, path ?? storageType ?? "unknown"].joined(separator: "-") }
+
+    var totalSpace: Int64? {
+        guard let freeSpace, let usedSpace else { return nil }
+        return freeSpace + usedSpace
+    }
+
+    var usedFraction: Double? {
+        guard let totalSpace, totalSpace > 0, let usedSpace else { return nil }
+        return min(max(Double(usedSpace) / Double(totalSpace), 0), 1)
+    }
+}
+
+struct JellyfinDrive: Decodable, Identifiable {
+    let name: String?
+    let path: String?
+    let type: String?
+
+    var id: String { path ?? name ?? type ?? "unknown" }
+
+    enum CodingKeys: String, CodingKey {
+        case name = "Name"
+        case path = "Path"
+        case type = "Type"
+    }
+}
+
 struct PlaybackInfo: Codable {
     let mediaSources: [MediaSource]
     let playSessionID: String?

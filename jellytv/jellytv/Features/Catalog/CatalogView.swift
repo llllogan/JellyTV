@@ -33,8 +33,10 @@ struct CatalogView: View {
     @State private var error: String?
     @State private var showServices = false
     @State private var showPendingRequests = false
+    @State private var showStorage = false
     @State private var filter: CatalogFilter = .all
     @State private var selectedDownloadedItem: JellyfinItem?
+    @State private var serverReachable = true
 
     private var downloadedItems: [JellyfinItem] {
         downloads.downloadedItems(for: session.account)
@@ -82,12 +84,16 @@ struct CatalogView: View {
     var body: some View {
         NavigationStack {
             List {
-                if filter == .downloads {
+                if showsDownloadedContent {
                     if downloadedItems.isEmpty {
                         ContentUnavailableView(
-                            "No \(type == "Movie" ? "movies" : "episodes") on my device",
-                            systemImage: "arrow.down.circle",
-                            description: Text("\(type == "Movie" ? "Movies" : "Episodes") saved to your device will appear here and can be watched offline.")
+                            serverReachable ? "No \(type == "Movie" ? "movies" : "episodes") on my device" : "You're Offline",
+                            systemImage: serverReachable ? "arrow.down.circle" : "wifi.slash",
+                            description: Text(
+                                serverReachable
+                                    ? "\(type == "Movie" ? "Movies" : "Episodes") saved to your device will appear here and can be watched offline."
+                                    : "Downloaded \(type == "Movie" ? "movies" : "episodes") will appear here."
+                            )
                         )
                     } else {
                         Section("On my device") {
@@ -131,20 +137,14 @@ struct CatalogView: View {
                     .id(item.id)
             }
             .overlay {
-                if filter == .all && items.isEmpty && error == nil {
+                if filter == .all && serverReachable && items.isEmpty && error == nil {
                     ProgressView()
                 }
             }
             .navigationTitle(title)
             .toolbarTitleDisplayMode(.inlineLarge)
-            .task {
-                await session.refreshReachability()
-                await load()
-            }
-            .refreshable {
-                await session.refreshReachability()
-                await load()
-            }
+            .task { await load() }
+            .refreshable { await load() }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu {
@@ -157,8 +157,16 @@ struct CatalogView: View {
                     }
                     Menu {
                         Button { showServices = true } label: {
-                            Label("Services", systemImage: "externaldrive.badge.icloud")
+                            Label("Services", systemImage: "cloud")
                         }
+
+                        Button { showStorage = true } label: {
+                            Label("Storage", systemImage: "internaldrive")
+                        }
+                        .disabled(!session.canViewStorage)
+
+                        Divider()
+
                         Button { showPendingRequests = true } label: {
                             Label(
                                 "Requests",
@@ -175,6 +183,7 @@ struct CatalogView: View {
                 ServicesView(jellyfinSession: session, seerrSession: seerrSession)
             }
             .sheet(isPresented: $showPendingRequests) { PendingRequestsView(session: seerrSession) }
+            .sheet(isPresented: $showStorage) { StorageView(session: session) }
             .onChange(of: filter) { _, filter in
                 guard filter == .all else { return }
                 Task { await load() }
@@ -184,7 +193,14 @@ struct CatalogView: View {
 
     private func load() async {
         guard filter == .all else { return }
-        guard session.isReachable else { return }
+        let reachability = await session.refreshReachability()
+        serverReachable = reachability == .reachable
+        guard reachability != .unauthorized else { return }
+        guard serverReachable else {
+            items = []
+            error = nil
+            return
+        }
         guard let api = session.api else { return }
         do {
             items = try await api.items(type: type)
@@ -193,5 +209,9 @@ struct CatalogView: View {
             session.handle(error)
             self.error = error.localizedDescription
         }
+    }
+
+    private var showsDownloadedContent: Bool {
+        filter == .downloads || !serverReachable
     }
 }
