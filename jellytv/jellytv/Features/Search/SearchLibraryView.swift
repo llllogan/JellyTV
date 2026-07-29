@@ -50,7 +50,6 @@ struct SearchLibraryView: View {
             .background(Color(uiColor: .systemBackground))
             .searchable(text: $query, prompt: "Movies and TV shows")
             .searchFocused($isSearchFocused)
-            .onSubmit(of: .search) { Task { await search() } }
             .onAppear { isSearchFocused = true }
             .navigationTitle("Search")
             .toolbarTitleDisplayMode(.inlineLarge)
@@ -64,26 +63,54 @@ struct SearchLibraryView: View {
             .sheet(isPresented: $showServers) {
                 ServersView(jellyfinSession: session, seerrSession: seerrSession)
             }
+            .task(id: query) {
+                let searchQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !searchQuery.isEmpty else {
+                    items = []
+                    seerrItems = []
+                    error = nil
+                    return
+                }
+
+                do {
+                    try await Task.sleep(for: .milliseconds(350))
+                    guard !Task.isCancelled else { return }
+                    await search(for: searchQuery)
+                } catch is CancellationError {
+                    // A newer keystroke replaced this pending search.
+                } catch {
+                    // Task.sleep only throws cancellation errors.
+                }
+            }
         }
     }
 
-    private func search() async {
-        guard let api = session.api, !query.isEmpty else {
+    private func search(for searchQuery: String) async {
+        guard let api = session.api else {
             items = []
             seerrItems = []
             return
         }
-        async let jellyfinSearch = api.items(type: "Movie,Series", search: query)
+        async let jellyfinSearch = api.items(type: "Movie,Series", search: searchQuery)
         do {
-            items = try await jellyfinSearch
+            let results = try await jellyfinSearch
+            guard !Task.isCancelled, query.trimmingCharacters(in: .whitespacesAndNewlines) == searchQuery else { return }
+            items = results
             error = nil
         } catch {
+            guard !Task.isCancelled, query.trimmingCharacters(in: .whitespacesAndNewlines) == searchQuery else { return }
             session.handle(error)
             self.error = error.localizedDescription
         }
         if let seerrAPI = seerrSession.api {
-            do { seerrItems = try await seerrAPI.search(query: query) }
-            catch { seerrSession.handle(error) }
+            do {
+                let results = try await seerrAPI.search(query: searchQuery)
+                guard !Task.isCancelled, query.trimmingCharacters(in: .whitespacesAndNewlines) == searchQuery else { return }
+                seerrItems = results
+            } catch {
+                guard !Task.isCancelled, query.trimmingCharacters(in: .whitespacesAndNewlines) == searchQuery else { return }
+                seerrSession.handle(error)
+            }
         } else {
             seerrItems = []
         }
