@@ -71,6 +71,21 @@ struct JellyfinItem: Codable, Identifiable, Hashable {
         )
     }
 
+    @MainActor var backdropImageURL: URL? {
+        guard let account = JellyfinSession.sharedAccount,
+              let tag = imageTags?["Backdrop"]
+        else {
+            return nil
+        }
+
+        return account.baseURL.appending(path: "Items/\(id)/Images/Backdrop").appending(
+            queryItems: [
+                URLQueryItem(name: "tag", value: tag),
+                URLQueryItem(name: "api_key", value: account.token),
+            ]
+        )
+    }
+
     var progressPercent: Double? {
         guard let percentage = userData?.playedPercentage else { return nil }
         return percentage / 100

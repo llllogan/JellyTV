@@ -25,18 +25,26 @@ struct ItemDetailView: View {
     var body: some View {
         List {
             Section {
+                let target = details ?? item
+                ArtworkView(
+                    item: target,
+                    height: 460,
+                    preferredArtworkURL: target.backdropImageURL,
+                    fillsFrame: true,
+                    cornerRadius: 0
+                )
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+
                 VStack(alignment: .leading, spacing: 16) {
-                    ArtworkView(item: item, width: 180, height: 270)
-                        .frame(maxWidth: .infinity)
-                    
                     VStack(alignment: .leading, spacing: 2) {
-                        Text((details ?? item).name).font(.title.bold())
-                        detailSubtitle(for: details ?? item)
+                        Text(target.name).font(.title.bold())
+                        detailSubtitle(for: target)
                     }
                     
                     actionRow
                     
-                    let target = details ?? item
                     if case let .downloading(progress) = downloads.state(for: target.id, account: session.account) {
                         Text("Downloading \(Int(progress * 100))% (\(ByteCountFormatter.string(fromByteCount: downloads.downloadedBytes(itemID: target.id, account: session.account), countStyle: .file)))")
                             .font(.footnote)
@@ -46,14 +54,17 @@ struct ItemDetailView: View {
                         Text(message).font(.footnote).foregroundStyle(.red)
                     }
                     if let error { Text(error).foregroundStyle(.red) }
-                    if let overview = (details ?? item).overview { Text(overview).foregroundStyle(.secondary) }
+                    if let overview = target.overview { Text(overview).foregroundStyle(.secondary) }
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
                 .padding(.bottom)
                 .id("summary")
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color(uiColor: .systemBackground))
             }
-            .listRowInsets(EdgeInsets())
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color(uiColor: .systemBackground))
+            .listSectionMargins(.horizontal, 0)
 
             if let hierarchyParent {
                 Section {
@@ -97,6 +108,9 @@ struct ItemDetailView: View {
         .listSectionSpacing(.compact)
         .scrollContentBackground(.hidden)
         .background(Color(uiColor: .systemBackground))
+        .contentMargins(.top, 0, for: .scrollContent)
+        .ignoresSafeArea(.container, edges: .top)
+        .scrollEdgeEffectHidden(true, for: .top)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -174,6 +188,8 @@ struct ItemDetailView: View {
         .frame(width: 230, height: 22)
         .clipped()
         .animation(.snappy(duration: 0.35), value: favouriteMessage)
+        .frame(width: 230, height: 44)
+        .glassEffect(.regular, in: .capsule)
         .accessibilityLabel(favouriteMessage ?? defaultToolbarTitle)
     }
 
