@@ -43,8 +43,8 @@ struct ItemDetailView: View {
                     if case let .failed(message) = downloads.state(for: (details ?? item).id, account: session.account) {
                         Text(message).font(.footnote).foregroundStyle(.red)
                     }
-                    if let overview = (details ?? item).overview { Text(overview).foregroundStyle(.secondary) }
                     if let error { Text(error).foregroundStyle(.red) }
+                    if let overview = (details ?? item).overview { Text(overview).foregroundStyle(.secondary) }
                 }
                 .padding(.bottom)
                 .id("summary")
@@ -52,6 +52,13 @@ struct ItemDetailView: View {
             .listRowInsets(EdgeInsets())
             .listRowSeparator(.hidden)
             .listRowBackground(Color(uiColor: .systemBackground))
+
+            if let hierarchyParent {
+                Section {
+                    hierarchyRow(hierarchyParent)
+                }
+                .listRowBackground(Color(uiColor: .secondarySystemBackground))
+            }
 
             if !children.isEmpty {
                 Section(item.type == "Season" ? "Episodes" : "Seasons") {
@@ -62,13 +69,6 @@ struct ItemDetailView: View {
                     }
                 }
                 .listRowInsets(EdgeInsets())
-            }
-
-            if let hierarchyParent {
-                Section {
-                    hierarchyRow(hierarchyParent)
-                }
-                .listRowBackground(Color(uiColor: .secondarySystemBackground))
             }
 
             let target = details ?? item
@@ -149,10 +149,14 @@ struct ItemDetailView: View {
             ItemDetailView(item: parent).id(parent.id)
         } label: {
             HStack(spacing: 12) {
-                ArtworkView(item: parent, width: 58, height: 82)
+                ArtworkView(item: parent, height: 44)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Found in").font(.caption).foregroundStyle(.secondary)
-                    Text(parent.name).font(.headline)
+                    Text("Found in")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(parent.name)
+                        .font(.subheadline.bold())
+                        .lineLimit(1)
                 }
             }
         }
@@ -385,7 +389,7 @@ struct ItemDetailView: View {
         let state = downloads.state(for: target.id, account: session.account)
         switch state {
         case .notDownloaded, .failed:
-            Image(systemName: "tray.and.arrow.down")
+            Image(systemName: "tray.and.arrow.down.fill")
         case let .downloading(progress):
             ZStack {
                 Circle().stroke(.secondary.opacity(0.3), lineWidth: 3)
