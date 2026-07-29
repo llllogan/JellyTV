@@ -14,6 +14,8 @@ struct ItemDetailView: View {
     @State private var serverReachable = false
     @SceneStorage("item-detail-scroll-position") private var savedScrollPosition = ""
     @State private var selectedAudioStreamIndex: Int?
+    @State private var favouriteMessage: String?
+    @State private var favouriteMessageID = UUID()
 
     init(item: JellyfinItem) {
         self.item = item
@@ -95,15 +97,19 @@ struct ItemDetailView: View {
         .listSectionSpacing(.compact)
         .scrollContentBackground(.hidden)
         .background(Color(uiColor: .systemBackground))
-        .navigationTitle(item.type == "Series" ? "Show" : "Details")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                favouriteToolbarTitle
+            }
+
             let target = details ?? item
             if favourites.isSupported(target) {
                 ToolbarItem(placement: .topBarTrailing) {
                     if favourites.contains(target, account: session.account) {
                         Button {
                             favourites.unfavourite(target, account: session.account)
+                            showFavouriteMessage(for: target, wasAdded: false)
                         } label: {
                             Image(systemName: "star.fill")
                                 .foregroundStyle(.yellow)
@@ -113,6 +119,7 @@ struct ItemDetailView: View {
                         Menu {
                             Button("Favourite episode") {
                                 favourites.favourite(target, account: session.account)
+                                showFavouriteMessage(for: target, wasAdded: true)
                             }
                             Button("Favourite season") {
                                 Task { await favouriteSeason(for: target) }
@@ -125,6 +132,7 @@ struct ItemDetailView: View {
                     } else {
                         Button {
                             favourites.favourite(target, account: session.account)
+                            showFavouriteMessage(for: target, wasAdded: true)
                         } label: {
                             Image(systemName: "star")
                         }
@@ -135,6 +143,66 @@ struct ItemDetailView: View {
             }
         }
         .task(id: item.id) { await load() }
+    }
+
+    private var favouriteToolbarTitle: some View {
+        ZStack {
+            Text(defaultToolbarTitle)
+                .frame(width: 230)
+                .opacity(favouriteMessage == nil ? 1 : 0)
+                .offset(y: favouriteMessage == nil ? 0 : -22)
+                .rotation3DEffect(
+                    .degrees(favouriteMessage == nil ? 0 : -80),
+                    axis: (x: 1, y: 0, z: 0),
+                    anchor: .bottom
+                )
+
+            if let favouriteMessage {
+                Text(favouriteMessage)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .frame(width: 230)
+                    .transition(
+                        .asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity),
+                            removal: .move(edge: .bottom).combined(with: .opacity)
+                        )
+                    )
+            }
+        }
+        .font(.headline)
+        .frame(width: 230, height: 22)
+        .clipped()
+        .animation(.snappy(duration: 0.35), value: favouriteMessage)
+        .accessibilityLabel(favouriteMessage ?? defaultToolbarTitle)
+    }
+
+    private var defaultToolbarTitle: String {
+        switch (details ?? item).type {
+        case "Movie": "Movie"
+        case "Series": "Series"
+        case "Season": "Season"
+        case "Episode": "Episode"
+        default: "Details"
+        }
+    }
+
+    private func showFavouriteMessage(for _: JellyfinItem, wasAdded: Bool) {
+        let message = wasAdded ? "Added to favourites" : "Removed from favourites"
+        let messageID = UUID()
+        favouriteMessageID = messageID
+
+        withAnimation {
+            favouriteMessage = message
+        }
+
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard favouriteMessageID == messageID else { return }
+            withAnimation {
+                favouriteMessage = nil
+            }
+        }
     }
 
     private var scrollPosition: Binding<String?> {
@@ -337,6 +405,7 @@ struct ItemDetailView: View {
         do {
             let season = try await api.item(id: seasonID)
             favourites.favourite(season, account: account)
+            showFavouriteMessage(for: season, wasAdded: true)
         } catch {
             self.error = error.localizedDescription
         }
