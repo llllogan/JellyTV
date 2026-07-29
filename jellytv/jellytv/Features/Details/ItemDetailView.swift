@@ -61,22 +61,15 @@ struct ItemDetailView: View {
                     .padding(.bottom, 24)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background {
-                        ZStack {
-                            LinearGradient(
-                                colors: [.clear, .black.opacity(0.75)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            Rectangle()
-                                .fill(.thinMaterial)
-                                .mask(
-                                    LinearGradient(
-                                        colors: [.clear, .clear, .black.opacity(0.9)],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                            )
-                        }
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0),
+                                .init(color: .black.opacity(0.75), location: 0.2),
+                                .init(color: .black.opacity(1.0), location: 1),
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                     .environment(\.colorScheme, .dark)
@@ -87,17 +80,6 @@ struct ItemDetailView: View {
                         endPoint: .bottom
                     )
                     .frame(height: 100)
-                    .background {
-                        Rectangle()
-                            .fill(.thinMaterial)
-                            .mask(
-                                LinearGradient(
-                                    colors: [.black.opacity(0.95), .black.opacity(0.75), .clear],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                    }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .allowsHitTesting(false)
                 }
@@ -137,12 +119,15 @@ struct ItemDetailView: View {
             }
 
             if !children.isEmpty {
-                Section(item.type == "Season" ? "Episodes" : "Seasons") {
+                Section {
                     ForEach(children) { child in
                         ItemRow(item: child)
                             .id(child.id)
                             .padding(.vertical)
                     }
+                } header: {
+                    Text(item.type == "Season" ? "Episodes" : "Seasons")
+                        .padding(.top, hierarchyParent == nil ? 0 : 24)
                 }
                 .listRowInsets(EdgeInsets())
             }
@@ -371,9 +356,9 @@ struct ItemDetailView: View {
                         if isLoading {
                             ProgressView()
                                 .controlSize(.small)
-                                .tint(.white)
+                                .tint(actionRowForeground)
                         } else if target.canResume, let progress = target.progressPercent {
-                            WatchProgressIndicator(progress: progress, size: 20, tint: .white)
+                            WatchProgressIndicator(progress: progress, size: 20, tint: actionRowForeground)
                         } else {
                             Image(systemName: "play.fill")
                         }
@@ -389,7 +374,12 @@ struct ItemDetailView: View {
                 downloadButton(for: target)
                 audioTrackButton(for: target)
             }
+            .foregroundStyle(actionRowForeground)
         }
+    }
+
+    private var actionRowForeground: Color {
+        Color(uiColor: .label)
     }
 
     @ViewBuilder private func audioTrackButton(for target: JellyfinItem) -> some View {
@@ -535,8 +525,8 @@ struct ItemDetailView: View {
             Image(systemName: "tray.and.arrow.down.fill")
         case let .downloading(progress):
             ZStack {
-                Circle().stroke(.secondary.opacity(0.3), lineWidth: 3)
-                Circle().trim(from: 0, to: progress).stroke(.tint, style: StrokeStyle(lineWidth: 3, lineCap: .round)).rotationEffect(.degrees(-90))
+                Circle().stroke(actionRowForeground.opacity(0.3), lineWidth: 3)
+                Circle().trim(from: 0, to: progress).stroke(actionRowForeground, style: StrokeStyle(lineWidth: 3, lineCap: .round)).rotationEffect(.degrees(-90))
                 Image(systemName: "xmark")
                     .font(Font.system(size: 8, weight: .bold))
             }
