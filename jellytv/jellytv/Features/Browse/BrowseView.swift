@@ -33,6 +33,8 @@ struct BrowseView: View {
     @State private var showServices = false
     @State private var showPendingRequests = false
     @State private var showStorage = false
+    @State private var isRescanningLibraries = false
+    @State private var libraryRescanProgress = 0.0
     @State private var hasLoaded = false
     @State private var mediaFilter: MediaFilter = .all
     @State private var serverReachable = true
@@ -50,6 +52,23 @@ struct BrowseView: View {
     var body: some View {
         NavigationStack {
             List {
+                if isRescanningLibraries {
+                    Section("Rescanning Libraries") {
+                        HStack(spacing: 12) {
+                            ProgressView(value: libraryRescanProgress)
+                            Text(libraryRescanProgress, format: .percent.precision(.fractionLength(0)))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color(uiColor: .secondarySystemBackground), in: Capsule())
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    }
+                }
+
                 if showsDownloadedGrid {
                     if filteredDownloaded.isEmpty {
                         ContentUnavailableView(
@@ -173,6 +192,14 @@ struct BrowseView: View {
                             Label("Storage", systemImage: "internaldrive")
                         }
                         .disabled(!session.canViewStorage)
+
+                        Button { Task { await rescanLibraries() } } label: {
+                            Label(
+                                isRescanningLibraries ? "Rescanning..." : "Rescan Libraries",
+                                systemImage: "arrow.trianglehead.2.clockwise"
+                            )
+                        }
+                        .disabled(!session.canViewStorage || isRescanningLibraries)
                         
                         Divider()
                         
@@ -270,6 +297,48 @@ struct BrowseView: View {
         tvGenres = (try? await tvGenreRequest) ?? []
 
         await loadGenreRows(api: api)
+    }
+
+    private func rescanLibraries() async {
+        guard let api = session.api else { return }
+        isRescanningLibraries = true
+        libraryRescanProgress = 0
+
+        do {
+            try await api.refreshLibraries()
+            await monitorLibraryRescan(using: api)
+        } catch {
+            session.handle(error)
+            isRescanningLibraries = false
+        }
+    }
+
+    private func monitorLibraryRescan(using api: JellyfinAPI) async {
+        var scanWasRunning = false
+
+        for attempt in 0 ..< 3_600 {
+            do {
+                if let task = try await api.libraryRefreshTask() {
+                    if task.isRunning {
+                        scanWasRunning = true
+                        libraryRescanProgress = min(max((task.currentProgressPercentage ?? 0) / 100, 0), 1)
+                    } else if scanWasRunning || attempt >= 10 {
+                        isRescanningLibraries = false
+                        return
+                    }
+                } else if attempt >= 10 {
+                    isRescanningLibraries = false
+                    return
+                }
+                try await Task.sleep(for: .seconds(1))
+            } catch {
+                session.handle(error)
+                isRescanningLibraries = false
+                return
+            }
+        }
+
+        isRescanningLibraries = false
     }
 
     private func loadGenreRows(api: SeerrAPI) async {
