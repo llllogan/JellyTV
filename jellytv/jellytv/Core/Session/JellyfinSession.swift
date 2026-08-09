@@ -11,6 +11,8 @@ final class JellyfinSession: ObservableObject {
     @Published var isRestoring = true
     @Published var error: String?
     @Published private(set) var reachability: JellyfinReachability?
+    @Published private(set) var isRescanningLibraries = false
+    @Published private(set) var libraryRescanProgress = 0.0
 
     static var sharedAccount: Account?
 
@@ -91,6 +93,48 @@ final class JellyfinSession: ObservableObject {
             logout()
             error = failure.localizedDescription
         }
+    }
+
+    func rescanLibraries() async {
+        guard !isRescanningLibraries, let api else { return }
+        isRescanningLibraries = true
+        libraryRescanProgress = 0
+
+        do {
+            try await api.refreshLibraries()
+            await monitorLibraryRescan(using: api)
+        } catch {
+            handle(error)
+            isRescanningLibraries = false
+        }
+    }
+
+    private func monitorLibraryRescan(using api: JellyfinAPI) async {
+        var scanWasRunning = false
+
+        for attempt in 0 ..< 3_600 {
+            do {
+                if let task = try await api.libraryRefreshTask() {
+                    if task.isRunning {
+                        scanWasRunning = true
+                        libraryRescanProgress = min(max((task.currentProgressPercentage ?? 0) / 100, 0), 1)
+                    } else if scanWasRunning || attempt >= 10 {
+                        isRescanningLibraries = false
+                        return
+                    }
+                } else if attempt >= 10 {
+                    isRescanningLibraries = false
+                    return
+                }
+                try await Task.sleep(for: .seconds(1))
+            } catch {
+                handle(error)
+                isRescanningLibraries = false
+                return
+            }
+        }
+
+        isRescanningLibraries = false
     }
 }
 

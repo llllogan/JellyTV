@@ -11,8 +11,8 @@ struct LoginView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Jellyfin server") {
-                    TextField("https://jellyfin.example.com", text: $serverURL)
+                Section {
+                    TextField("Jellyfin URL", text: $serverURL)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.URL)
                         .autocorrectionDisabled()
@@ -21,7 +21,7 @@ struct LoginView: View {
                         .keyboardType(.URL)
                         .autocorrectionDisabled()
                 }
-                Section("Sign in") {
+                Section {
                     TextField("Username", text: $username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()

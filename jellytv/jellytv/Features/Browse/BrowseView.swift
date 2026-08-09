@@ -33,8 +33,6 @@ struct BrowseView: View {
     @State private var showServices = false
     @State private var showPendingRequests = false
     @State private var showStorage = false
-    @State private var isRescanningLibraries = false
-    @State private var libraryRescanProgress = 0.0
     @State private var hasLoaded = false
     @State private var mediaFilter: MediaFilter = .all
     @State private var serverReachable = true
@@ -52,11 +50,11 @@ struct BrowseView: View {
     var body: some View {
         NavigationStack {
             List {
-                if isRescanningLibraries {
+                if session.isRescanningLibraries {
                     Section("Rescanning Libraries") {
                         HStack(spacing: 12) {
-                            ProgressView(value: libraryRescanProgress)
-                            Text(libraryRescanProgress, format: .percent.precision(.fractionLength(0)))
+                            ProgressView(value: session.libraryRescanProgress)
+                            Text(session.libraryRescanProgress, format: .percent.precision(.fractionLength(0)))
                                 .monospacedDigit()
                                 .foregroundStyle(.secondary)
                         }
@@ -193,13 +191,13 @@ struct BrowseView: View {
                         }
                         .disabled(!session.canViewStorage)
 
-                        Button { Task { await rescanLibraries() } } label: {
+                        Button { Task { await session.rescanLibraries() } } label: {
                             Label(
-                                isRescanningLibraries ? "Rescanning..." : "Rescan Libraries",
+                                session.isRescanningLibraries ? "Rescanning..." : "Rescan Libraries",
                                 systemImage: "arrow.trianglehead.2.clockwise"
                             )
                         }
-                        .disabled(!session.canViewStorage || isRescanningLibraries)
+                        .disabled(!session.canViewStorage || session.isRescanningLibraries)
                         
                         Divider()
                         
@@ -217,7 +215,7 @@ struct BrowseView: View {
             }
             .navigationTitle(serverReachable ? "Browse" : "Offline")
             .toolbarTitleDisplayMode(.inlineLarge)
-            .task { await load() }
+            .onAppear { startInitialLoad() }
             .refreshable { await load(force: true) }
             .sheet(isPresented: $showServices) {
                 ServicesView(jellyfinSession: session, seerrSession: seerrSession)
@@ -276,6 +274,12 @@ struct BrowseView: View {
         await loadSeerr()
     }
 
+    private func startInitialLoad() {
+        guard !hasLoaded else { return }
+        hasLoaded = true
+        Task { await load(force: true) }
+    }
+
     private func loadSeerr() async {
         guard let api = seerrSession.api else { return }
         async let trendingMovies = api.trendingMovies()
@@ -297,48 +301,6 @@ struct BrowseView: View {
         tvGenres = (try? await tvGenreRequest) ?? []
 
         await loadGenreRows(api: api)
-    }
-
-    private func rescanLibraries() async {
-        guard let api = session.api else { return }
-        isRescanningLibraries = true
-        libraryRescanProgress = 0
-
-        do {
-            try await api.refreshLibraries()
-            await monitorLibraryRescan(using: api)
-        } catch {
-            session.handle(error)
-            isRescanningLibraries = false
-        }
-    }
-
-    private func monitorLibraryRescan(using api: JellyfinAPI) async {
-        var scanWasRunning = false
-
-        for attempt in 0 ..< 3_600 {
-            do {
-                if let task = try await api.libraryRefreshTask() {
-                    if task.isRunning {
-                        scanWasRunning = true
-                        libraryRescanProgress = min(max((task.currentProgressPercentage ?? 0) / 100, 0), 1)
-                    } else if scanWasRunning || attempt >= 10 {
-                        isRescanningLibraries = false
-                        return
-                    }
-                } else if attempt >= 10 {
-                    isRescanningLibraries = false
-                    return
-                }
-                try await Task.sleep(for: .seconds(1))
-            } catch {
-                session.handle(error)
-                isRescanningLibraries = false
-                return
-            }
-        }
-
-        isRescanningLibraries = false
     }
 
     private func loadGenreRows(api: SeerrAPI) async {

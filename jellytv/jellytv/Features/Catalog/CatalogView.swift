@@ -143,7 +143,7 @@ struct CatalogView: View {
             }
             .navigationTitle(title)
             .toolbarTitleDisplayMode(.inlineLarge)
-            .task { await load() }
+            .onAppear { Task { await load() } }
             .refreshable { await load() }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -164,6 +164,14 @@ struct CatalogView: View {
                             Label("Storage", systemImage: "internaldrive")
                         }
                         .disabled(!session.canViewStorage)
+
+                        Button { Task { await session.rescanLibraries() } } label: {
+                            Label(
+                                session.isRescanningLibraries ? "Rescanning..." : "Rescan Libraries",
+                                systemImage: "arrow.trianglehead.2.clockwise"
+                            )
+                        }
+                        .disabled(!session.canViewStorage || session.isRescanningLibraries)
 
                         Divider()
 
