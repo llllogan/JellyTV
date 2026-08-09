@@ -64,8 +64,11 @@ struct ItemDetailView: View {
                         LinearGradient(
                             stops: [
                                 .init(color: .clear, location: 0),
-                                .init(color: .black.opacity(0.75), location: 0.2),
-                                .init(color: .black.opacity(1.0), location: 1),
+                                .init(color: .black.opacity(0.08), location: 0.15),
+                                .init(color: .black.opacity(0.32), location: 0.20),
+                                .init(color: .black.opacity(0.55), location: 0.25),
+                                .init(color: .black.opacity(0.70), location: 0.60),
+                                .init(color: .black.opacity(0.70), location: 1),
                             ],
                             startPoint: .top,
                             endPoint: .bottom
