@@ -7,6 +7,7 @@ struct LoginView: View {
     @State private var seerrURL = ""
     @State private var username = ""
     @State private var password = ""
+    @State private var previousLogins = LoginHistoryStore.load()
 
     var body: some View {
         NavigationStack {
@@ -34,6 +35,27 @@ struct LoginView: View {
                 }
             }
             .toolbar {
+                if !previousLogins.isEmpty {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Menu {
+                            ForEach(previousLogins) { login in
+                                Button {
+                                    serverURL = login.jellyfinURL
+                                    seerrURL = login.seerrURL
+                                    username = login.username
+                                    password = ""
+                                } label: {
+                                    Text(login.username)
+                                    Text(login.jellyfinURL)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "list.bullet")
+                        }
+                    }
+                }
                 ToolbarItem(placement: .principal) {
                     Text("Jelly TV")
                         .font(.title3)
@@ -66,6 +88,13 @@ struct LoginView: View {
             password: password,
             permitsLocalHTTP: true
         )
+        guard session.account != nil else { return }
+        LoginHistoryStore.save(
+            jellyfinURL: serverURL,
+            seerrURL: seerrURL,
+            username: username
+        )
+        previousLogins = LoginHistoryStore.load()
     }
 
     private func signInToSeerrIfProvided() async {
@@ -77,5 +106,45 @@ struct LoginView: View {
             password: password,
             permitsLocalHTTP: true
         )
+    }
+}
+
+private struct PreviousLogin: Codable, Identifiable {
+    let id: UUID
+    let jellyfinURL: String
+    let seerrURL: String
+    let username: String
+}
+
+private enum LoginHistoryStore {
+    private static let storageKey = "previous-logins"
+
+    static func load() -> [PreviousLogin] {
+        guard
+            let data = UserDefaults.standard.data(forKey: storageKey),
+            let logins = try? JSONDecoder().decode([PreviousLogin].self, from: data)
+        else { return [] }
+        return logins
+    }
+
+    static func save(jellyfinURL: String, seerrURL: String, username: String) {
+        var logins = load()
+        guard !logins.contains(where: {
+            $0.jellyfinURL == jellyfinURL
+                && $0.seerrURL == seerrURL
+                && $0.username == username
+        }) else { return }
+
+        logins.insert(
+            PreviousLogin(
+                id: UUID(),
+                jellyfinURL: jellyfinURL,
+                seerrURL: seerrURL,
+                username: username
+            ),
+            at: 0
+        )
+        guard let data = try? JSONEncoder().encode(logins) else { return }
+        UserDefaults.standard.set(data, forKey: storageKey)
     }
 }

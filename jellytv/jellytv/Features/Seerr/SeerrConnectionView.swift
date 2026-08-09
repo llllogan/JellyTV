@@ -28,8 +28,6 @@ struct SeerrConnectionView: View {
                         TextField("Jellyfin username", text: $username)
                             .textInputAutocapitalization(.never).autocorrectionDisabled()
                         SecureField("Jellyfin password", text: $password)
-                        Text("Your password is used only to establish the Seerr session and is not stored.")
-                            .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
                 if let error = session.error { Section { Text(error).foregroundStyle(.red) } }

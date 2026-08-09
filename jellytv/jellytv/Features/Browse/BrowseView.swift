@@ -199,15 +199,26 @@ struct BrowseView: View {
                         }
                         .disabled(!session.canViewStorage || session.isRescanningLibraries)
                         
-                        Divider()
-                        
-                        Button { showPendingRequests = true } label: {
-                            Label(
-                                "Requests",
-                                systemImage: seerrSession.pendingApprovalCount > 0 ? "envelope.open" : "envelope"
-                            )
+                        if seerrSession.isConnected {
+                            Divider()
+
+                            Button { showPendingRequests = true } label: {
+                                Label(
+                                    "Requests",
+                                    systemImage: seerrSession.pendingApprovalCount > 0 ? "envelope.open" : "envelope"
+                                )
+                            }
+                            .disabled(!session.isReachable)
                         }
-                        .disabled(!session.isReachable)
+
+                        Divider()
+
+                        Button(role: .destructive) {
+                            seerrSession.disconnect()
+                            session.logout()
+                        } label: {
+                            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
                     } label: {
                         Image(systemName: "ellipsis")
                     }

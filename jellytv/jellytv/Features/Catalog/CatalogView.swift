@@ -173,15 +173,26 @@ struct CatalogView: View {
                         }
                         .disabled(!session.canViewStorage || session.isRescanningLibraries)
 
+                        if seerrSession.isConnected {
+                            Divider()
+
+                            Button { showPendingRequests = true } label: {
+                                Label(
+                                    "Requests",
+                                    systemImage: seerrSession.pendingApprovalCount > 0 ? "envelope.open" : "envelope"
+                                )
+                            }
+                            .disabled(!session.isReachable)
+                        }
+
                         Divider()
 
-                        Button { showPendingRequests = true } label: {
-                            Label(
-                                "Requests",
-                                systemImage: seerrSession.pendingApprovalCount > 0 ? "envelope.open" : "envelope"
-                            )
+                        Button(role: .destructive) {
+                            seerrSession.disconnect()
+                            session.logout()
+                        } label: {
+                            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                         }
-                        .disabled(!session.isReachable)
                     } label: {
                         Image(systemName: "ellipsis")
                     }
