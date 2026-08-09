@@ -32,25 +32,40 @@ struct LoginView: View {
                         Text(error).foregroundStyle(.red)
                     }
                 }
-                Section {
-                    Button(session.isWorking || seerrSession.isWorking ? "Signing in…" : "Sign In") {
-                        Task {
-                            // Keep this view alive until the optional Seerr session has been
-                            // persisted. A successful Jellyfin login replaces LoginView.
-                            await signInToSeerrIfProvided()
-                            await session.login(
-                                url: serverURL,
-                                username: username,
-                                password: password,
-                                permitsLocalHTTP: true
-                            )
-                        }
-                    }
-                    .disabled(session.isWorking || seerrSession.isWorking || serverURL.isEmpty || username.isEmpty)
+            }
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Jelly TV")
+                        .font(.title3)
+                        .bold()
                 }
             }
-            .navigationTitle("Jelly TV")
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    Task { await signIn() }
+                } label: {
+                    Text(session.isWorking || seerrSession.isWorking ? "Signing in…" : "Sign In")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.glassProminent)
+                .disabled(session.isWorking || seerrSession.isWorking || serverURL.isEmpty || username.isEmpty)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
         }
+    }
+
+    private func signIn() async {
+        // Keep this view alive until the optional Seerr session has been persisted.
+        // A successful Jellyfin login replaces LoginView.
+        await signInToSeerrIfProvided()
+        await session.login(
+            url: serverURL,
+            username: username,
+            password: password,
+            permitsLocalHTTP: true
+        )
     }
 
     private func signInToSeerrIfProvided() async {
